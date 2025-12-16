@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { 
-  MapPin, Navigation, Settings, Plus, Save, X, 
+import {
+  MapPin, Navigation, Settings, Plus, Save, X,
   Users, Truck, Eye, EyeOff, Trash2, RefreshCw,
-  Circle, Square, AlertTriangle, Clock, Zap
+  Circle, Square, AlertTriangle, Clock, Zap, Edit
 } from 'lucide-react';
 
 // TypeScript interfaces
@@ -13,11 +13,16 @@ interface Coordinate {
 
 interface Zone {
   id: string;
+  zone_code?: string; // API field
   name: string;
   color: string;
   coordinates: Coordinate[];
+  boundary?: Coordinate[]; // API field
   visible: boolean;
+  is_active?: boolean; // API field
+  visible_on_map?: boolean; // API field
   customerCount?: number;
+  description?: string;
 }
 
 interface Technician {
@@ -123,34 +128,8 @@ const mockWorkOrders: WorkOrder[] = [
   }
 ];
 
-const defaultZones: Zone[] = [
-  {
-    id: 'A',
-    name: 'Zone A - Downtown Lafayette',
-    color: '#ef4444',
-    coordinates: [
-      { lat: 40.4200, lng: -86.8900 },
-      { lat: 40.4300, lng: -86.8900 },
-      { lat: 40.4300, lng: -86.8700 },
-      { lat: 40.4200, lng: -86.8700 }
-    ],
-    visible: true,
-    customerCount: 12
-  },
-  {
-    id: 'B',
-    name: 'Zone B - West Lafayette',
-    color: '#3b82f6',
-    coordinates: [
-      { lat: 40.4150, lng: -86.9200 },
-      { lat: 40.4350, lng: -86.9200 },
-      { lat: 40.4350, lng: -86.9000 },
-      { lat: 40.4150, lng: -86.9000 }
-    ],
-    visible: true,
-    customerCount: 8
-  }
-];
+// API Configuration
+const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
 
 // Simple Google Maps hook
 const useGoogleMaps = () => {
@@ -548,7 +527,7 @@ const GoogleMapComponent: React.FC<{
 const MapPage: React.FC = () => {
   const { isLoaded, isError } = useGoogleMaps();
   const [activeMode, setActiveMode] = useState<'zone' | 'gps'>('gps');
-  const [zones, setZones] = useState<Zone[]>(defaultZones);
+  const [zones, setZones] = useState<Zone[]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentZone, setCurrentZone] = useState<Zone | null>(null);
   const [technicians, setTechnicians] = useState<Technician[]>(mockTechnicians);
@@ -556,6 +535,13 @@ const MapPage: React.FC = () => {
   const [showTechnicians, setShowTechnicians] = useState(true);
   const [showWorkOrders, setShowWorkOrders] = useState(true);
   const [showZonePanel, setShowZonePanel] = useState(false);
+  const [isLoadingZones, setIsLoadingZones] = useState(false);
+  const [editingZone, setEditingZone] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{ name: string; color: string; description: string }>({
+    name: '',
+    color: '',
+    description: ''
+  });
   const [mapStats, setMapStats] = useState<MapStats>({
     activeTechs: 3,
     openWorkOrders: 1,
@@ -563,10 +549,56 @@ const MapPage: React.FC = () => {
     gpsStatus: 'Connected',
     lastUpdated: new Date()
   });
-  
+
   const [mapCenter] = useState<Coordinate>({ lat: 40.4173, lng: -86.8753 });
   const [mapZoom] = useState(13);
   const zoneColors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+
+  // Fetch zones from API
+  const fetchZones = useCallback(async () => {
+    setIsLoadingZones(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/zones`);
+      if (!response.ok) throw new Error('Failed to fetch zones');
+      const apiZones = await response.json();
+
+      // Convert API format to UI format
+      const convertedZones: Zone[] = apiZones.map((zone: any) => ({
+        id: zone.zone_code,
+        zone_code: zone.zone_code,
+        name: zone.name,
+        color: zone.color,
+        coordinates: zone.boundary, // API uses 'boundary' field
+        boundary: zone.boundary,
+        visible: zone.visible_on_map !== false,
+        is_active: zone.is_active,
+        visible_on_map: zone.visible_on_map,
+        description: zone.description
+      }));
+
+      setZones(convertedZones);
+
+      // Fetch zone statistics for customer counts
+      const statsResponse = await fetch(`${API_BASE}/api/zones/statistics`);
+      if (statsResponse.ok) {
+        const stats = await statsResponse.json();
+        setZones(prev => prev.map(zone => {
+          const zoneStat = stats.find((s: any) => s.zone_code === zone.zone_code);
+          return zoneStat ? { ...zone, customerCount: zoneStat.customer_count } : zone;
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching zones:', error);
+      alert('Failed to load zones. Using default view.');
+    } finally {
+      setIsLoadingZones(false);
+    }
+  }, []);
+
+  // Load zones on mount
+  useEffect(() => {
+    fetchZones();
+  }, [fetchZones]);
 
   const handleStartDrawing = useCallback(() => {
     if (zones.length >= 6) {
@@ -585,31 +617,139 @@ const MapPage: React.FC = () => {
     setIsDrawing(true);
   }, [zones.length, zoneColors]);
 
-  const handleSaveZone = useCallback(() => {
-    if (currentZone && currentZone.coordinates.length >= 3) {
-      setZones(prev => [...prev, currentZone]);
+  const handleSaveZone = useCallback(async () => {
+    if (!currentZone || currentZone.coordinates.length < 3) return;
+
+    try {
+      // Prepare zone data for API
+      const zoneData = {
+        zone_code: currentZone.id,
+        name: currentZone.name,
+        color: currentZone.color,
+        boundary: currentZone.coordinates,
+        description: currentZone.description || `Service zone ${currentZone.id}`,
+        is_active: true,
+        visible_on_map: true
+      };
+
+      const response = await fetch(`${API_BASE}/api/zones`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(zoneData)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to create zone');
+      }
+
+      // Reload zones from API to get updated data
+      await fetchZones();
       setCurrentZone(null);
       setIsDrawing(false);
+      alert(`Zone ${currentZone.id} created successfully!`);
+    } catch (error: any) {
+      console.error('Error saving zone:', error);
+      alert(`Failed to save zone: ${error.message}`);
     }
-  }, [currentZone]);
+  }, [currentZone, fetchZones]);
 
   const handleCancelDrawing = useCallback(() => {
     setCurrentZone(null);
     setIsDrawing(false);
   }, []);
 
-  const toggleZoneVisibility = useCallback((zoneId: string) => {
-    setZones(prev => prev.map(zone => 
-      zone.id === zoneId ? { ...zone, visible: !zone.visible } : zone
-    ));
-  }, []);
-
-  const deleteZone = useCallback((zoneId: string) => {
+  const toggleZoneVisibility = useCallback(async (zoneId: string) => {
     const zone = zones.find(z => z.id === zoneId);
-    if (zone && window.confirm(`Are you sure you want to delete ${zone.name}?`)) {
-      setZones(prev => prev.filter(zone => zone.id !== zoneId));
+    if (!zone) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/api/zones/${zoneId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          visible_on_map: !zone.visible
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to update zone visibility');
+
+      // Update local state optimistically
+      setZones(prev => prev.map(z =>
+        z.id === zoneId ? { ...z, visible: !z.visible, visible_on_map: !z.visible } : z
+      ));
+    } catch (error) {
+      console.error('Error toggling zone visibility:', error);
+      alert('Failed to update zone visibility');
     }
   }, [zones]);
+
+  const deleteZone = useCallback(async (zoneId: string) => {
+    const zone = zones.find(z => z.id === zoneId);
+    if (!zone || !window.confirm(`Are you sure you want to delete ${zone.name}?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/api/zones/${zoneId}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to delete zone');
+      }
+
+      // Remove from local state
+      setZones(prev => prev.filter(z => z.id !== zoneId));
+      alert(`Zone ${zone.name} deleted successfully`);
+    } catch (error: any) {
+      console.error('Error deleting zone:', error);
+      alert(`Failed to delete zone: ${error.message}`);
+    }
+  }, [zones]);
+
+  const handleEditZone = useCallback((zoneId: string) => {
+    const zone = zones.find(z => z.id === zoneId);
+    if (zone) {
+      setEditingZone(zoneId);
+      setEditForm({
+        name: zone.name,
+        color: zone.color,
+        description: zone.description || ''
+      });
+    }
+  }, [zones]);
+
+  const handleSaveEdit = useCallback(async (zoneId: string) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/zones/${zoneId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update zone');
+      }
+
+      // Update local state
+      setZones(prev => prev.map(z =>
+        z.id === zoneId ? { ...z, ...editForm } : z
+      ));
+      setEditingZone(null);
+      alert('Zone updated successfully');
+    } catch (error: any) {
+      console.error('Error updating zone:', error);
+      alert(`Failed to update zone: ${error.message}`);
+    }
+  }, [editForm]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingZone(null);
+    setEditForm({ name: '', color: '', description: '' });
+  }, []);
 
   // Handle map click for zone drawing
   const handleMapClick = useCallback((lat: number, lng: number) => {
@@ -888,53 +1028,167 @@ const MapPage: React.FC = () => {
                 {zones.map(zone => (
                   <div key={zone.id} style={{
                     padding: '1rem',
-                    backgroundColor: '#f9fafb',
+                    backgroundColor: editingZone === zone.id ? '#f0f9ff' : '#f9fafb',
                     borderRadius: '0.5rem',
-                    border: '1px solid #e5e7eb'
+                    border: editingZone === zone.id ? '1px solid #0ea5e9' : '1px solid #e5e7eb'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <div style={{
-                          width: '1rem',
-                          height: '1rem',
-                          backgroundColor: zone.color,
-                          borderRadius: '0.25rem'
-                        }} />
-                        <span style={{ fontWeight: '500', fontSize: '0.875rem', color: '#1f2937' }}>{zone.name}</span>
+                    {editingZone === zone.id ? (
+                      // Edit Mode
+                      <div>
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '0.25rem' }}>Zone Name</label>
+                          <input
+                            type="text"
+                            value={editForm.name}
+                            onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                            style={{
+                              width: '100%',
+                              padding: '0.5rem',
+                              fontSize: '0.875rem',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '0.375rem'
+                            }}
+                          />
+                        </div>
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '0.25rem' }}>Zone Color</label>
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <input
+                              type="color"
+                              value={editForm.color}
+                              onChange={(e) => setEditForm(prev => ({ ...prev, color: e.target.value }))}
+                              style={{
+                                width: '3rem',
+                                height: '2.5rem',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '0.375rem',
+                                cursor: 'pointer'
+                              }}
+                            />
+                            <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>{editForm.color}</span>
+                          </div>
+                        </div>
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '0.25rem' }}>Description (optional)</label>
+                          <input
+                            type="text"
+                            value={editForm.description}
+                            onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+                            style={{
+                              width: '100%',
+                              padding: '0.5rem',
+                              fontSize: '0.875rem',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '0.375rem'
+                            }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            onClick={() => handleSaveEdit(zone.id)}
+                            style={{
+                              flex: 1,
+                              padding: '0.5rem',
+                              backgroundColor: '#10b981',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '0.375rem',
+                              cursor: 'pointer',
+                              fontSize: '0.875rem',
+                              fontWeight: '500',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.25rem'
+                            }}
+                          >
+                            <Save style={{ width: '0.875rem', height: '0.875rem' }} />
+                            Save
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            style={{
+                              flex: 1,
+                              padding: '0.5rem',
+                              backgroundColor: '#6b7280',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '0.375rem',
+                              cursor: 'pointer',
+                              fontSize: '0.875rem',
+                              fontWeight: '500'
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', gap: '0.25rem' }}>
-                        <button
-                          onClick={() => toggleZoneVisibility(zone.id)}
-                          style={{
-                            padding: '0.25rem',
-                            backgroundColor: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: zone.visible ? '#059669' : '#9ca3af'
-                          }}
-                          title={zone.visible ? 'Hide zone' : 'Show zone'}
-                        >
-                          {zone.visible ? <Eye style={{ width: '0.875rem', height: '0.875rem' }} /> : <EyeOff style={{ width: '0.875rem', height: '0.875rem' }} />}
-                        </button>
-                        <button
-                          onClick={() => deleteZone(zone.id)}
-                          style={{
-                            padding: '0.25rem',
-                            backgroundColor: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: '#ef4444'
-                          }}
-                          title="Delete zone"
-                        >
-                          <Trash2 style={{ width: '0.875rem', height: '0.875rem' }} />
-                        </button>
-                      </div>
-                    </div>
-                    {zone.customerCount && (
-                      <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                        {zone.customerCount} customers assigned
-                      </div>
+                    ) : (
+                      // View Mode
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <div style={{
+                              width: '1rem',
+                              height: '1rem',
+                              backgroundColor: zone.color,
+                              borderRadius: '0.25rem'
+                            }} />
+                            <span style={{ fontWeight: '500', fontSize: '0.875rem', color: '#1f2937' }}>{zone.name}</span>
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.25rem' }}>
+                            <button
+                              onClick={() => handleEditZone(zone.id)}
+                              style={{
+                                padding: '0.25rem',
+                                backgroundColor: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                color: '#3b82f6'
+                              }}
+                              title="Edit zone"
+                            >
+                              <Edit style={{ width: '0.875rem', height: '0.875rem' }} />
+                            </button>
+                            <button
+                              onClick={() => toggleZoneVisibility(zone.id)}
+                              style={{
+                                padding: '0.25rem',
+                                backgroundColor: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                color: zone.visible ? '#059669' : '#9ca3af'
+                              }}
+                              title={zone.visible ? 'Hide zone' : 'Show zone'}
+                            >
+                              {zone.visible ? <Eye style={{ width: '0.875rem', height: '0.875rem' }} /> : <EyeOff style={{ width: '0.875rem', height: '0.875rem' }} />}
+                            </button>
+                            <button
+                              onClick={() => deleteZone(zone.id)}
+                              style={{
+                                padding: '0.25rem',
+                                backgroundColor: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                color: '#ef4444'
+                              }}
+                              title="Delete zone"
+                            >
+                              <Trash2 style={{ width: '0.875rem', height: '0.875rem' }} />
+                            </button>
+                          </div>
+                        </div>
+                        {zone.description && (
+                          <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>
+                            {zone.description}
+                          </div>
+                        )}
+                        {zone.customerCount !== undefined && (
+                          <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                            {zone.customerCount} customers assigned
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 ))}

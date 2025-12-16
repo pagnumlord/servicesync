@@ -42,6 +42,22 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
     }
   };
 
+  // Get zone color (matches database zone colors)
+  const getZoneColor = () => {
+    const zoneColors: Record<string, string> = {
+      'A': '#EF4444', // Red - Downtown Lafayette
+      'B': '#3B82F6', // Blue - West Lafayette
+      'C': '#10B981', // Green - North Lafayette
+      'D': '#F59E0B', // Orange - South Lafayette
+      'E': '#8B5CF6', // Purple - East Lafayette
+      'F': '#EC4899'  // Pink - County
+    };
+
+    return workOrder.customer_zone ?
+      zoneColors[workOrder.customer_zone] || '#6B7280' :
+      '#6B7280';
+  };
+
   // Get zone-based background color (subtle background indication)
   const getZoneBackgroundColor = () => {
     const zoneColors: Record<string, string> = {
@@ -52,9 +68,9 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
       'E': '#F5F3FF', // Light purple
       'F': '#FDF2F8'  // Light pink
     };
-    
-    return workOrder.customer_zone ? 
-      zoneColors[workOrder.customer_zone] || '#F9FAFB' : 
+
+    return workOrder.customer_zone ?
+      zoneColors[workOrder.customer_zone] || '#F9FAFB' :
       '#F9FAFB';
   };
 
@@ -175,7 +191,7 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
           </div>
         </div>
 
-        {/* Zone indicator - Future: This is where zone color indicators will go */}
+        {/* Zone indicator and rate type badges */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -194,18 +210,23 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
               {workOrder.call_rate}
             </span>
           )}
-          
-          {/* Future: Zone color indicator will replace rate badge */}
+
+          {/* Zone Badge - Letter indicator with zone color */}
           {workOrder.customer_zone && (
-            <div style={{
-              width: '12px',
-              height: '12px',
-              borderRadius: '50%',
-              backgroundColor: getStatusBorderColor(),
-              opacity: 0.7
-            }} 
+            <span style={{
+              fontSize: '0.75rem',
+              fontWeight: '700',
+              padding: '0.125rem 0.375rem',
+              borderRadius: '0.25rem',
+              backgroundColor: getZoneColor(),
+              color: 'white',
+              border: '1px solid white',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+            }}
             title={`Zone ${workOrder.customer_zone}`}
-            />
+            >
+              {workOrder.customer_zone}
+            </span>
           )}
         </div>
       </div>

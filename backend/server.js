@@ -3150,6 +3150,159 @@ process.on('SIGINT', async () => {
 // ================================
 
 // ========================================
+// ZONE MANAGEMENT ENDPOINTS
+// ========================================
+
+/**
+ * @route GET /api/zones
+ * @description Get all service zones
+ */
+app.get('/api/zones', async (req, res) => {
+  try {
+    const { active_only = 'true' } = req.query;
+
+    let query = 'SELECT * FROM service_zones WHERE 1=1';
+    const params = [];
+
+    if (active_only === 'true') {
+      query += ' AND is_active = $1';
+      params.push(true);
+    }
+
+    query += ' ORDER BY zone_code';
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching zones:', error);
+    res.status(500).json({ error: 'Failed to fetch zones' });
+  }
+});
+
+/**
+ * @route GET /api/zones/statistics
+ * @description Get zone statistics including customer counts
+ */
+app.get('/api/zones/statistics', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM zone_statistics');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching zone statistics:', error);
+    res.status(500).json({ error: 'Failed to fetch zone statistics' });
+  }
+});
+
+/**
+ * @route POST /api/zones
+ * @description Create new service zone
+ */
+app.post('/api/zones', async (req, res) => {
+  try {
+    const { zone_code, name, color, description, boundary } = req.body;
+
+    const result = await pool.query(`
+      INSERT INTO service_zones (zone_code, name, color, description, boundary, created_by_user_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+    `, [zone_code, name, color, description, JSON.stringify(boundary), 1]);
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating zone:', error);
+    if (error.code === '23505') {
+      return res.status(400).json({ error: 'Zone code already exists' });
+    }
+    res.status(500).json({ error: 'Failed to create zone' });
+  }
+});
+
+/**
+ * @route PUT /api/zones/:code
+ * @description Update service zone
+ */
+app.put('/api/zones/:code', async (req, res) => {
+  try {
+    const { code } = req.params;
+    const { name, color, description, boundary, is_active, visible_on_map } = req.body;
+
+    const result = await pool.query(`
+      UPDATE service_zones SET
+        name = $1,
+        color = $2,
+        description = $3,
+        boundary = $4,
+        is_active = $5,
+        visible_on_map = $6,
+        updated_at = NOW()
+      WHERE zone_code = $7
+      RETURNING *
+    `, [name, color, description, JSON.stringify(boundary), is_active, visible_on_map, code]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Zone not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating zone:', error);
+    res.status(500).json({ error: 'Failed to update zone' });
+  }
+});
+
+/**
+ * @route DELETE /api/zones/:code
+ * @description Delete service zone
+ */
+app.delete('/api/zones/:code', async (req, res) => {
+  try {
+    const { code } = req.params;
+
+    const result = await pool.query(
+      'DELETE FROM service_zones WHERE zone_code = $1 RETURNING zone_code',
+      [code]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Zone not found' });
+    }
+
+    res.json({ message: 'Zone deleted successfully', zone_code: code });
+  } catch (error) {
+    console.error('Error deleting zone:', error);
+    res.status(500).json({ error: 'Failed to delete zone' });
+  }
+});
+
+/**
+ * @route POST /api/zones/detect
+ * @description Detect which zone a lat/lng falls into
+ */
+app.post('/api/zones/detect', async (req, res) => {
+  try {
+    const { latitude, longitude } = req.body;
+
+    if (!latitude || !longitude) {
+      return res.status(400).json({ error: 'Latitude and longitude are required' });
+    }
+
+    const result = await pool.query(
+      'SELECT detect_zone_for_location($1, $2) as zone_code',
+      [latitude, longitude]
+    );
+
+    res.json({
+      latitude,
+      longitude,
+      zone_code: result.rows[0].zone_code
+    });
+  } catch (error) {
+    console.error('Error detecting zone:', error);
+    res.status(500).json({ error: 'Failed to detect zone' });
+  }
+});
+
+// ========================================
 // VENDOR MANAGEMENT ENDPOINTS
 // ========================================
 
