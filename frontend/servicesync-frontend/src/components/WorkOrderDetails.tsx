@@ -1,15 +1,15 @@
 // WorkOrderDetails.tsx - Vision-inspired comprehensive work order modal
 import React, { useState, useEffect } from 'react';
-import { 
-  X, 
-  MapPin, 
-  Clock, 
-  User, 
-  Wrench, 
-  AlertTriangle, 
-  Phone, 
-  Mail, 
-  FileText, 
+import {
+  X,
+  MapPin,
+  Clock,
+  User,
+  Wrench,
+  AlertTriangle,
+  Phone,
+  Mail,
+  FileText,
   Calendar,
   DollarSign,
   Edit2,
@@ -18,9 +18,13 @@ import {
   Settings,
   CheckSquare,
   Archive,
-  Grid
+  Grid,
+  Receipt,
+  ShoppingCart
 } from 'lucide-react';
 import { WorkOrder } from '../types';
+import RegisterTab from './RegisterTab';
+import PurchasingTab from './PurchasingTab';
 
 interface WorkOrderDetailsProps {
   workOrder: WorkOrder;
@@ -459,55 +463,11 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
           )}
 
           {activeTab === 'register' && (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '1rem'
-            }}>
-              <h3 style={{
-                margin: 0,
-                fontSize: '1.125rem',
-                fontWeight: '600',
-                color: '#1F2937'
-              }}>
-                Parts & Labor Register
-              </h3>
-              <div style={{
-                backgroundColor: '#F9FAFB',
-                padding: '2rem',
-                borderRadius: '0.5rem',
-                textAlign: 'center',
-                color: '#6B7280'
-              }}>
-                Parts and labor tracking coming soon...
-              </div>
-            </div>
+            <RegisterTab workOrderId={workOrder.id} isReadOnly={false} />
           )}
 
           {activeTab === 'purchasing' && (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '1rem'
-            }}>
-              <h3 style={{
-                margin: 0,
-                fontSize: '1.125rem',
-                fontWeight: '600',
-                color: '#1F2937'
-              }}>
-                Purchase Orders
-              </h3>
-              <div style={{
-                backgroundColor: '#F9FAFB',
-                padding: '2rem',
-                borderRadius: '0.5rem',
-                textAlign: 'center',
-                color: '#6B7280'
-              }}>
-                Purchase order system coming soon...
-              </div>
-            </div>
+            <PurchasingTab workOrderId={workOrder.id} isReadOnly={false} />
           )}
         </div>
       </div>

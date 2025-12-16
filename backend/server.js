@@ -3197,6 +3197,616 @@ process.on('SIGINT', async () => {
 // START SERVER
 // ================================
 
+// ========================================
+// VENDOR MANAGEMENT ENDPOINTS
+// ========================================
+
+/**
+ * @route GET /api/vendors
+ * @description Get all vendors with pagination and filtering
+ */
+app.get('/api/vendors', async (req, res) => {
+  try {
+    const { active_only = 'true', type, page = 1, limit = 50 } = req.query;
+    const offset = (page - 1) * limit;
+
+    let query = 'SELECT * FROM vendors WHERE 1=1';
+    const params = [];
+    let paramIndex = 1;
+
+    if (active_only === 'true') {
+      query += ` AND is_active = $${paramIndex++}`;
+      params.push(true);
+    }
+
+    if (type) {
+      query += ` AND vendor_type = $${paramIndex++}`;
+      params.push(type);
+    }
+
+    query += ` ORDER BY name ASC LIMIT $${paramIndex++} OFFSET $${paramIndex}`;
+    params.push(limit, offset);
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching vendors:', error);
+    res.status(500).json({ error: 'Failed to fetch vendors' });
+  }
+});
+
+/**
+ * @route GET /api/vendors/:id
+ * @description Get single vendor details
+ */
+app.get('/api/vendors/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT * FROM vendors WHERE id = $1', [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Vendor not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching vendor:', error);
+    res.status(500).json({ error: 'Failed to fetch vendor' });
+  }
+});
+
+/**
+ * @route POST /api/vendors
+ * @description Create new vendor
+ */
+app.post('/api/vendors', async (req, res) => {
+  try {
+    const {
+      name, contact_name, phone, phone_2, email, website,
+      address_line1, address_line2, city, state, zip,
+      payment_terms, tax_id, account_number,
+      vendor_type, specialty,
+      notes, internal_notes
+    } = req.body;
+
+    // Generate vendor number
+    const vendorNumberResult = await pool.query('SELECT generate_vendor_number() as vendor_number');
+    const vendor_number = vendorNumberResult.rows[0].vendor_number;
+
+    const result = await pool.query(`
+      INSERT INTO vendors (
+        vendor_number, name, contact_name, phone, phone_2, email, website,
+        address_line1, address_line2, city, state, zip,
+        payment_terms, tax_id, account_number,
+        vendor_type, specialty, notes, internal_notes,
+        created_by_user_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+      RETURNING *
+    `, [
+      vendor_number, name, contact_name, phone, phone_2, email, website,
+      address_line1, address_line2, city, state, zip,
+      payment_terms, tax_id, account_number,
+      vendor_type, specialty, notes, internal_notes,
+      1 // TODO: Use actual user ID from auth
+    ]);
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating vendor:', error);
+    res.status(500).json({ error: 'Failed to create vendor' });
+  }
+});
+
+/**
+ * @route PUT /api/vendors/:id
+ * @description Update vendor
+ */
+app.put('/api/vendors/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      name, contact_name, phone, phone_2, email, website,
+      address_line1, address_line2, city, state, zip,
+      payment_terms, tax_id, account_number,
+      vendor_type, specialty, is_active, is_preferred, rating,
+      notes, internal_notes
+    } = req.body;
+
+    const result = await pool.query(`
+      UPDATE vendors SET
+        name = $1, contact_name = $2, phone = $3, phone_2 = $4, email = $5, website = $6,
+        address_line1 = $7, address_line2 = $8, city = $9, state = $10, zip = $11,
+        payment_terms = $12, tax_id = $13, account_number = $14,
+        vendor_type = $15, specialty = $16, is_active = $17, is_preferred = $18, rating = $19,
+        notes = $20, internal_notes = $21, updated_at = NOW()
+      WHERE id = $22
+      RETURNING *
+    `, [
+      name, contact_name, phone, phone_2, email, website,
+      address_line1, address_line2, city, state, zip,
+      payment_terms, tax_id, account_number,
+      vendor_type, specialty, is_active, is_preferred, rating,
+      notes, internal_notes, id
+    ]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Vendor not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating vendor:', error);
+    res.status(500).json({ error: 'Failed to update vendor' });
+  }
+});
+
+// ========================================
+// PURCHASE ORDER ENDPOINTS
+// ========================================
+
+/**
+ * @route GET /api/purchase-orders
+ * @description Get all purchase orders
+ */
+app.get('/api/purchase-orders', async (req, res) => {
+  try {
+    const { status, work_order_id, vendor_id } = req.query;
+
+    let query = `
+      SELECT po.*, v.name as vendor_name
+      FROM purchase_orders po
+      LEFT JOIN vendors v ON po.vendor_id = v.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIndex = 1;
+
+    if (status) {
+      query += ` AND po.status = $${paramIndex++}`;
+      params.push(status);
+    }
+
+    if (work_order_id) {
+      query += ` AND po.work_order_id = $${paramIndex++}`;
+      params.push(work_order_id);
+    }
+
+    if (vendor_id) {
+      query += ` AND po.vendor_id = $${paramIndex++}`;
+      params.push(vendor_id);
+    }
+
+    query += ' ORDER BY po.order_date DESC, po.created_at DESC';
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching purchase orders:', error);
+    res.status(500).json({ error: 'Failed to fetch purchase orders' });
+  }
+});
+
+/**
+ * @route GET /api/purchase-orders/:id
+ * @description Get purchase order details with line items
+ */
+app.get('/api/purchase-orders/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const poResult = await pool.query(`
+      SELECT po.*, v.name as vendor_name, v.phone as vendor_phone, v.email as vendor_email
+      FROM purchase_orders po
+      LEFT JOIN vendors v ON po.vendor_id = v.id
+      WHERE po.id = $1
+    `, [id]);
+
+    if (poResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Purchase order not found' });
+    }
+
+    const lineItemsResult = await pool.query(`
+      SELECT * FROM po_line_items
+      WHERE po_id = $1
+      ORDER BY line_number
+    `, [id]);
+
+    const po = poResult.rows[0];
+    po.line_items = lineItemsResult.rows;
+
+    res.json(po);
+  } catch (error) {
+    console.error('Error fetching purchase order:', error);
+    res.status(500).json({ error: 'Failed to fetch purchase order' });
+  }
+});
+
+/**
+ * @route POST /api/purchase-orders
+ * @description Create new purchase order with line items
+ */
+app.post('/api/purchase-orders', async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const {
+      work_order_id, vendor_id, expected_delivery, payment_method,
+      shipping_method, ship_to_address, notes, internal_notes, priority,
+      line_items
+    } = req.body;
+
+    // Generate PO number
+    const poNumberResult = await client.query('SELECT generate_po_number() as po_number');
+    const po_number = poNumberResult.rows[0].po_number;
+
+    // Create PO
+    const poResult = await client.query(`
+      INSERT INTO purchase_orders (
+        po_number, work_order_id, vendor_id, expected_delivery, payment_method,
+        shipping_method, ship_to_address, notes, internal_notes, priority,
+        created_by_user_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING *
+    `, [
+      po_number, work_order_id, vendor_id, expected_delivery, payment_method,
+      shipping_method, ship_to_address, notes, internal_notes, priority,
+      1 // TODO: Use actual user ID
+    ]);
+
+    const po = poResult.rows[0];
+
+    // Create line items
+    if (line_items && line_items.length > 0) {
+      for (let i = 0; i < line_items.length; i++) {
+        const item = line_items[i];
+        await client.query(`
+          INSERT INTO po_line_items (
+            po_id, line_number, part_number, description, manufacturer,
+            quantity_ordered, unit_of_measure, unit_cost, line_total,
+            markup_percentage, sell_price, notes
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        `, [
+          po.id, i + 1, item.part_number, item.description, item.manufacturer,
+          item.quantity_ordered, item.unit_of_measure || 'EA', item.unit_cost,
+          item.quantity_ordered * item.unit_cost, item.markup_percentage || 0,
+          item.sell_price, item.notes
+        ]);
+      }
+    }
+
+    await client.query('COMMIT');
+
+    // Fetch complete PO with line items
+    const completePoResult = await pool.query(`
+      SELECT po.*, v.name as vendor_name
+      FROM purchase_orders po
+      LEFT JOIN vendors v ON po.vendor_id = v.id
+      WHERE po.id = $1
+    `, [po.id]);
+
+    const lineItemsResult = await pool.query(`
+      SELECT * FROM po_line_items WHERE po_id = $1 ORDER BY line_number
+    `, [po.id]);
+
+    const completePo = completePoResult.rows[0];
+    completePo.line_items = lineItemsResult.rows;
+
+    res.status(201).json(completePo);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error creating purchase order:', error);
+    res.status(500).json({ error: 'Failed to create purchase order' });
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * @route PUT /api/purchase-orders/:id/status
+ * @description Update purchase order status
+ */
+app.put('/api/purchase-orders/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, received_date } = req.body;
+
+    const result = await pool.query(`
+      UPDATE purchase_orders SET
+        status = $1,
+        received_date = $2,
+        updated_at = NOW()
+      WHERE id = $3
+      RETURNING *
+    `, [status, received_date, id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Purchase order not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating PO status:', error);
+    res.status(500).json({ error: 'Failed to update PO status' });
+  }
+});
+
+// ========================================
+// WORK ORDER LINE ITEMS (REGISTER TAB)
+// ========================================
+
+/**
+ * @route GET /api/work-orders/:id/line-items
+ * @description Get all line items for a work order
+ */
+app.get('/api/work-orders/:id/line-items', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(`
+      SELECT * FROM work_order_line_items
+      WHERE work_order_id = $1
+      ORDER BY line_number
+    `, [id]);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching line items:', error);
+    res.status(500).json({ error: 'Failed to fetch line items' });
+  }
+});
+
+/**
+ * @route POST /api/work-orders/:id/line-items
+ * @description Add line item to work order
+ */
+app.post('/api/work-orders/:id/line-items', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      item_type, description, part_number, manufacturer,
+      quantity, unit_of_measure, unit_cost, unit_price,
+      labor_hours, labor_rate, is_billable, is_taxable, is_warranty, notes
+    } = req.body;
+
+    // Get next line number
+    const lineNumResult = await pool.query(`
+      SELECT COALESCE(MAX(line_number), 0) + 1 as next_line_number
+      FROM work_order_line_items
+      WHERE work_order_id = $1
+    `, [id]);
+
+    const line_number = lineNumResult.rows[0].next_line_number;
+
+    // Calculate totals
+    const line_total = quantity * unit_price;
+    const cost_total = quantity * (unit_cost || 0);
+    const profit_margin = line_total - cost_total;
+
+    const result = await pool.query(`
+      INSERT INTO work_order_line_items (
+        work_order_id, line_number, item_type, description, part_number, manufacturer,
+        quantity, unit_of_measure, unit_cost, unit_price, labor_hours, labor_rate,
+        line_total, cost_total, profit_margin,
+        is_billable, is_taxable, is_warranty, notes, created_by_user_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+      RETURNING *
+    `, [
+      id, line_number, item_type, description, part_number, manufacturer,
+      quantity, unit_of_measure || 'EA', unit_cost || 0, unit_price,
+      labor_hours, labor_rate, line_total, cost_total, profit_margin,
+      is_billable !== false, is_taxable !== false, is_warranty || false, notes,
+      1 // TODO: Use actual user ID
+    ]);
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating line item:', error);
+    res.status(500).json({ error: 'Failed to create line item' });
+  }
+});
+
+/**
+ * @route PUT /api/work-orders/:workOrderId/line-items/:lineItemId
+ * @description Update line item
+ */
+app.put('/api/work-orders/:workOrderId/line-items/:lineItemId', async (req, res) => {
+  try {
+    const { lineItemId } = req.params;
+    const {
+      item_type, description, part_number, manufacturer,
+      quantity, unit_of_measure, unit_cost, unit_price,
+      labor_hours, labor_rate, is_billable, is_taxable, is_warranty, notes
+    } = req.body;
+
+    const line_total = quantity * unit_price;
+    const cost_total = quantity * (unit_cost || 0);
+    const profit_margin = line_total - cost_total;
+
+    const result = await pool.query(`
+      UPDATE work_order_line_items SET
+        item_type = $1, description = $2, part_number = $3, manufacturer = $4,
+        quantity = $5, unit_of_measure = $6, unit_cost = $7, unit_price = $8,
+        labor_hours = $9, labor_rate = $10, line_total = $11, cost_total = $12,
+        profit_margin = $13, is_billable = $14, is_taxable = $15, is_warranty = $16,
+        notes = $17, updated_at = NOW()
+      WHERE id = $18
+      RETURNING *
+    `, [
+      item_type, description, part_number, manufacturer,
+      quantity, unit_of_measure, unit_cost, unit_price,
+      labor_hours, labor_rate, line_total, cost_total, profit_margin,
+      is_billable, is_taxable, is_warranty, notes, lineItemId
+    ]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Line item not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating line item:', error);
+    res.status(500).json({ error: 'Failed to update line item' });
+  }
+});
+
+/**
+ * @route DELETE /api/work-orders/:workOrderId/line-items/:lineItemId
+ * @description Delete line item
+ */
+app.delete('/api/work-orders/:workOrderId/line-items/:lineItemId', async (req, res) => {
+  try {
+    const { lineItemId } = req.params;
+
+    const result = await pool.query(
+      'DELETE FROM work_order_line_items WHERE id = $1 RETURNING id',
+      [lineItemId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Line item not found' });
+    }
+
+    res.json({ message: 'Line item deleted successfully', id: lineItemId });
+  } catch (error) {
+    console.error('Error deleting line item:', error);
+    res.status(500).json({ error: 'Failed to delete line item' });
+  }
+});
+
+// ========================================
+// INVOICE ENDPOINTS
+// ========================================
+
+/**
+ * @route GET /api/invoices
+ * @description Get all invoices
+ */
+app.get('/api/invoices', async (req, res) => {
+  try {
+    const { status, customer_id } = req.query;
+
+    let query = `
+      SELECT i.*, c.name as customer_name, w.wo_number
+      FROM invoices i
+      LEFT JOIN customers c ON i.customer_id = c.id
+      LEFT JOIN work_orders w ON i.work_order_id = w.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIndex = 1;
+
+    if (status) {
+      query += ` AND i.status = $${paramIndex++}`;
+      params.push(status);
+    }
+
+    if (customer_id) {
+      query += ` AND i.customer_id = $${paramIndex++}`;
+      params.push(customer_id);
+    }
+
+    query += ' ORDER BY i.invoice_date DESC';
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching invoices:', error);
+    res.status(500).json({ error: 'Failed to fetch invoices' });
+  }
+});
+
+/**
+ * @route POST /api/work-orders/:id/generate-invoice
+ * @description Generate invoice from work order
+ */
+app.post('/api/work-orders/:id/generate-invoice', async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const { id } = req.params;
+    const { payment_terms, tax_rate, discount_amount, notes } = req.body;
+
+    // Get work order details
+    const woResult = await client.query(`
+      SELECT * FROM work_orders WHERE id = $1
+    `, [id]);
+
+    if (woResult.rows.length === 0) {
+      throw new Error('Work order not found');
+    }
+
+    const workOrder = woResult.rows[0];
+
+    // Generate invoice number
+    const invNumberResult = await client.query('SELECT generate_invoice_number() as invoice_number');
+    const invoice_number = invNumberResult.rows[0].invoice_number;
+
+    // Calculate due date (30 days from now by default)
+    const due_date = new Date();
+    due_date.setDate(due_date.getDate() + 30);
+
+    // Create invoice
+    const invoiceResult = await client.query(`
+      INSERT INTO invoices (
+        invoice_number, work_order_id, customer_id,
+        payment_terms, tax_rate, discount_amount, notes,
+        due_date, created_by_user_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *
+    `, [
+      invoice_number, id, workOrder.customer_id,
+      payment_terms || 'Net 30', tax_rate || 0, discount_amount || 0, notes,
+      due_date, 1 // TODO: Use actual user ID
+    ]);
+
+    const invoice = invoiceResult.rows[0];
+
+    // Copy work order line items to invoice
+    const lineItemsResult = await client.query(`
+      SELECT * FROM work_order_line_items
+      WHERE work_order_id = $1 AND is_billable = true
+      ORDER BY line_number
+    `, [id]);
+
+    for (let i = 0; i < lineItemsResult.rows.length; i++) {
+      const item = lineItemsResult.rows[i];
+      await client.query(`
+        INSERT INTO invoice_line_items (
+          invoice_id, work_order_line_item_id, line_number,
+          item_type, description, quantity, unit_price, line_total, is_taxable
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `, [
+        invoice.id, item.id, i + 1,
+        item.item_type, item.description, item.quantity, item.unit_price,
+        item.line_total, item.is_taxable
+      ]);
+    }
+
+    await client.query('COMMIT');
+
+    // Fetch complete invoice
+    const completeInvoice = await pool.query(`
+      SELECT i.*, c.name as customer_name, w.wo_number
+      FROM invoices i
+      LEFT JOIN customers c ON i.customer_id = c.id
+      LEFT JOIN work_orders w ON i.work_order_id = w.id
+      WHERE i.id = $1
+    `, [invoice.id]);
+
+    res.status(201).json(completeInvoice.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error generating invoice:', error);
+    res.status(500).json({ error: 'Failed to generate invoice' });
+  } finally {
+    client.release();
+  }
+});
+
 server.listen(PORT, () => {
   console.log('');
   console.log('🚀 ServiceSync Backend Server Started');
