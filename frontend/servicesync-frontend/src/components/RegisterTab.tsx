@@ -104,7 +104,7 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
   };
 
   const handleDeleteItem = async (lineItemId: number) => {
-    if (!confirm('Are you sure you want to delete this line item?')) return;
+    if (!window.confirm('Are you sure you want to delete this line item?')) return;
 
     try {
       const response = await fetch(

@@ -2732,56 +2732,8 @@ app.get('/api/customers/:id/equipment', async (req, res) => {
 });
 
 // ============================================================
-// ENHANCED CUSTOMER WORK ORDERS ENDPOINT (with equipment join)
-// ============================================================
-
-// This may replace or enhance your existing endpoint
-// GET /api/customers/:id/work-orders - Get all work orders for a customer
-app.get('/api/customers/:id/work-orders', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status, limit = 100 } = req.query;
-    
-    let query = `
-      SELECT 
-        wo.*,
-        t.first_name as tech_first_name,
-        t.last_name as tech_last_name,
-        e.equipment_number,
-        e.equipment_type,
-        e.brand as equipment_brand,
-        e.model as equipment_model,
-        e.serial_number as equipment_serial,
-        e.location_description as equipment_location
-      FROM work_orders wo
-      LEFT JOIN technicians t ON wo.assigned_tech_id = t.id
-      LEFT JOIN equipment e ON wo.equipment_id = e.id
-      WHERE wo.customer_id = $1
-    `;
-    
-    const params = [id];
-    
-    if (status && status !== 'all') {
-      query += ` AND wo.status = $2`;
-      params.push(status);
-    }
-    
-    query += ` ORDER BY wo.created_at DESC LIMIT $${params.length + 1}`;
-    params.push(limit);
-    
-    const result = await pool.query(query, params);
-    
-    res.json({
-      customer_id: parseInt(id),
-      work_orders: result.rows,
-      total_count: result.rows.length,
-      filters_applied: { status: status || 'all', limit }
-    });
-  } catch (error) {
-    console.error('Error fetching customer work orders:', error);
-    res.status(500).json({ error: 'Failed to fetch work orders' });
-  }
-});
+// DUPLICATE ENDPOINT REMOVED - Using comprehensive endpoint at line 720
+// The first endpoint already handles this with full pagination and better error handling
 
 // ================================
 // FILE UPLOAD HANDLING
