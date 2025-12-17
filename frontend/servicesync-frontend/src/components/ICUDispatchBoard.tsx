@@ -10,6 +10,48 @@ import QuickNotesPreview from './QuickNotesPreview';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
+// Zone colors matching database
+const ZONE_COLORS: Record<string, string> = {
+  'A': '#EF4444', // Red - Downtown Lafayette
+  'B': '#3B82F6', // Blue - West Lafayette
+  'C': '#10B981', // Green - North Lafayette
+  'D': '#F59E0B', // Orange - South Lafayette
+  'E': '#8B5CF6', // Purple - East Lafayette
+  'F': '#EC4899'  // Pink - County
+};
+
+// Point-in-polygon algorithm to detect if a lat/lng is inside a zone
+function pointInPolygon(lat: number, lng: number, polygon: Array<{ lat: number; lng: number }>): boolean {
+  if (polygon.length < 3) return false;
+
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].lng, yi = polygon[i].lat;
+    const xj = polygon[j].lng, yj = polygon[j].lat;
+
+    const intersect = ((yi > lat) !== (yj > lat))
+      && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+
+  return inside;
+}
+
+// Detect which zone a location is in
+function detectZone(lat: number | undefined, lng: number | undefined, zones: any[]): string | null {
+  if (!lat || !lng || !zones || zones.length === 0) return null;
+
+  for (const zone of zones) {
+    if (zone.visible && zone.coordinates && zone.coordinates.length >= 3) {
+      if (pointInPolygon(lat, lng, zone.coordinates)) {
+        return zone.zone_code || zone.id;
+      }
+    }
+  }
+
+  return null;
+}
+
 // Enhanced WorkOrder interface to include date visibility properties
 interface EnhancedWorkOrder extends WorkOrder {
   display_status?: string;
@@ -48,6 +90,7 @@ function ICUDispatchBoard({
   const [unassignedWorkOrders, setUnassignedWorkOrders] = useState<EnhancedWorkOrder[]>([]);
   const [partsWorkOrders, setPartsWorkOrders] = useState<EnhancedWorkOrder[]>([]);
   const [readyToSchedule, setReadyToSchedule] = useState<EnhancedWorkOrder[]>([]);
+  const [zones, setZones] = useState<any[]>([]);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -152,11 +195,37 @@ function ICUDispatchBoard({
     };
 
     window.addEventListener('workOrderCreated', handleWorkOrderCreated);
-    
+
     return () => {
       window.removeEventListener('workOrderCreated', handleWorkOrderCreated);
     };
   }, [loadDispatchData]);
+
+  // Load zones on mount for technician zone detection
+  useEffect(() => {
+    const fetchZones = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/zones`);
+        if (!response.ok) {
+          console.warn('Failed to load zones for technician zone detection');
+          return;
+        }
+        const data = await response.json();
+        // Convert API format to frontend format
+        const zonesWithCoordinates = data.map((zone: any) => ({
+          ...zone,
+          coordinates: zone.boundary,
+          zone_code: zone.zone_code,
+          visible: zone.visible_on_map !== false
+        }));
+        setZones(zonesWithCoordinates);
+      } catch (error) {
+        console.warn('Error loading zones:', error);
+      }
+    };
+
+    fetchZones();
+  }, []);
 
   const enhanceWorkOrderWithVisibility = (workOrder: any): EnhancedWorkOrder => {
     return {
@@ -925,6 +994,7 @@ function ICUDispatchBoard({
                 <TechnicianColumn
                   key={technician.id}
                   technician={technician}
+                  zones={zones}
                   onDrop={handleDrop}
                   onWorkOrderContextMenu={handleContextMenu}
                   onWorkOrderSelect={handleWorkOrderSelect}
@@ -1075,6 +1145,7 @@ function ICUDispatchBoard({
 // OPTIMIZED Technician Column Component
 interface TechnicianColumnProps {
   technician: Technician;
+  zones: any[];
   onDrop: (target: string, workOrder: EnhancedWorkOrder, techId?: number, timeSlot?: string) => void;
   onWorkOrderContextMenu: (e: React.MouseEvent, workOrder: EnhancedWorkOrder) => void;
   onWorkOrderSelect?: (workOrder: EnhancedWorkOrder) => void;
@@ -1088,6 +1159,7 @@ interface TechnicianColumnProps {
 
 function TechnicianColumn({
   technician,
+  zones,
   onDrop,
   onWorkOrderContextMenu,
   onWorkOrderSelect,
@@ -1105,6 +1177,9 @@ function TechnicianColumn({
 
   const firstAMTargetId = `tech-${technician.id}-first-am`;
   const unscheduledTargetId = `tech-${technician.id}-unscheduled`;
+
+  // Detect technician's current zone based on GPS location
+  const techZone = detectZone(technician.latitude, technician.longitude, zones);
 
   return (
     <div style={{
@@ -1144,9 +1219,9 @@ function TechnicianColumn({
           {technician.first_name[0]}{technician.last_name[0]}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ 
-            fontWeight: '600', 
-            fontSize: '0.875rem', 
+          <div style={{
+            fontWeight: '600',
+            fontSize: '0.875rem',
             color: '#1F2937',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -1154,8 +1229,24 @@ function TechnicianColumn({
           }}>
             {technician.first_name} {technician.last_name}
           </div>
-          <div style={{ fontSize: '0.625rem', color: '#6B7280' }}>
-            {technician.crew} • Van {technician.van_number}
+          <div style={{ fontSize: '0.625rem', color: '#6B7280', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span>{technician.crew} • Van {technician.van_number}</span>
+            {techZone && (
+              <span style={{
+                fontSize: '0.625rem',
+                fontWeight: '700',
+                padding: '0.125rem 0.25rem',
+                borderRadius: '0.25rem',
+                backgroundColor: ZONE_COLORS[techZone] || '#6B7280',
+                color: 'white',
+                border: '1px solid white',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+              }}
+              title={`Currently in Zone ${techZone}`}
+              >
+                {techZone}
+              </span>
+            )}
           </div>
         </div>
       </div>
