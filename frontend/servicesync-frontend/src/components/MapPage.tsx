@@ -131,7 +131,7 @@ const mockWorkOrders: WorkOrder[] = [
 // API Configuration
 const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
 
-// Simple Google Maps hook
+// Simple Google Maps hook - Fixed to prevent double loading
 const useGoogleMaps = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isError, setIsError] = useState(false);
@@ -139,6 +139,7 @@ const useGoogleMaps = () => {
   useEffect(() => {
     // Check if Google Maps is already loaded
     if (window.google?.maps) {
+      console.log('✅ Google Maps already loaded');
       setIsLoaded(true);
       return;
     }
@@ -146,47 +147,62 @@ const useGoogleMaps = () => {
     // Check if script is already in the DOM
     const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
     if (existingScript) {
+      console.log('⏳ Google Maps script found, waiting for load...');
       // Script exists, wait for it to load
       const checkLoaded = setInterval(() => {
         if (window.google?.maps) {
+          console.log('✅ Google Maps loaded from existing script');
           setIsLoaded(true);
           clearInterval(checkLoaded);
         }
       }, 100);
-      return () => clearInterval(checkLoaded);
+
+      // Timeout after 10 seconds
+      const timeout = setTimeout(() => {
+        clearInterval(checkLoaded);
+        if (!window.google?.maps) {
+          console.error('❌ Google Maps failed to load (timeout)');
+          setIsError(true);
+        }
+      }, 10000);
+
+      return () => {
+        clearInterval(checkLoaded);
+        clearTimeout(timeout);
+      };
     }
 
-    // Create new script
-    const script = document.createElement('script');
+    // Create new script ONLY if none exists
     const apiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
-    
+
     if (!apiKey) {
-      console.error('Google Maps API key is missing');
+      console.error('❌ Google Maps API key is missing');
       setIsError(true);
       return;
     }
 
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry`;
+    console.log('🔄 Loading Google Maps API...');
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry&loading=async`;
     script.async = true;
     script.defer = true;
-    
+    script.id = 'google-maps-script'; // Add ID to prevent duplicates
+
     script.onload = () => {
+      console.log('✅ Google Maps API loaded successfully');
       setIsLoaded(true);
     };
-    
+
     script.onerror = () => {
-      console.error('Failed to load Google Maps script');
+      console.error('❌ Failed to load Google Maps script');
       setIsError(true);
     };
 
     document.head.appendChild(script);
 
-    // Cleanup function
+    // Don't remove script on cleanup - let it persist for performance
     return () => {
-      const scriptToRemove = document.querySelector('script[src*="maps.googleapis.com"]');
-      if (scriptToRemove && scriptToRemove.parentNode) {
-        scriptToRemove.parentNode.removeChild(scriptToRemove);
-      }
+      console.log('🧹 MapPage unmounting (keeping Google Maps loaded)');
     };
   }, []);
 
@@ -292,6 +308,7 @@ const GoogleMapComponent: React.FC<{
   useEffect(() => {
     if (!mapRef.current || !window.google?.maps || mapInstanceRef.current) return;
 
+    console.log('🗺️ Initializing Google Map...');
     const mapInstance = new window.google.maps.Map(mapRef.current, {
       center,
       zoom,
@@ -310,16 +327,31 @@ const GoogleMapComponent: React.FC<{
 
     // Enhanced map click listener for zone drawing
     mapInstance.addListener('click', (e: any) => {
+      console.log('🖱️ Map clicked!', {
+        hasLatLng: !!e.latLng,
+        isDrawing,
+        activeMode,
+        currentZone: !!currentZone
+      });
+
       if (isDrawing && e.latLng && activeMode === 'zone') {
         const lat = e.latLng.lat();
         const lng = e.latLng.lng();
-        console.log('Map clicked for zone drawing:', { lat, lng, isDrawing, activeMode });
+        console.log('✅ Zone drawing click detected:', { lat, lng, isDrawing, activeMode });
         onMapClick(lat, lng);
+      } else {
+        console.log('❌ Click ignored:', {
+          reason: !isDrawing ? 'Not drawing' : !e.latLng ? 'No latLng' : activeMode !== 'zone' ? 'Wrong mode' : 'Unknown',
+          isDrawing,
+          activeMode,
+          hasLatLng: !!e.latLng
+        });
       }
     });
 
+    console.log('✅ Google Map initialized and click listener added');
     mapInstanceRef.current = mapInstance;
-  }, [center, zoom, isDrawing, activeMode, onMapClick]);
+  }, [center, zoom, isDrawing, activeMode, onMapClick, currentZone]);
 
   // Update markers - ONLY TECHNICIANS, NO WORK ORDER PINS
   useEffect(() => {
