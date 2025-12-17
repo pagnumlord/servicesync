@@ -29,7 +29,7 @@ interface UseWebSocketReturn {
 
 export const useWebSocket = (options: UseWebSocketOptions = {}): UseWebSocketReturn => {
   const {
-    url = 'http://localhost:5000',
+    url = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000',
     autoConnect = true,
     events = {}
   } = options;
