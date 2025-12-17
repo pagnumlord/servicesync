@@ -137,8 +137,8 @@ const useGoogleMaps = () => {
   const [isError, setIsError] = useState(false);
 
   useEffect(() => {
-    // Check if Google Maps is already loaded
-    if (window.google?.maps) {
+    // Check if Google Maps is already fully loaded (including Map constructor)
+    if (window.google?.maps?.Map) {
       console.log('✅ Google Maps already loaded');
       setIsLoaded(true);
       return;
@@ -150,7 +150,7 @@ const useGoogleMaps = () => {
       console.log('⏳ Google Maps script found, waiting for load...');
       // Script exists, wait for it to load
       const checkLoaded = setInterval(() => {
-        if (window.google?.maps) {
+        if (window.google?.maps?.Map) {
           console.log('✅ Google Maps loaded from existing script');
           setIsLoaded(true);
           clearInterval(checkLoaded);
@@ -160,7 +160,7 @@ const useGoogleMaps = () => {
       // Timeout after 10 seconds
       const timeout = setTimeout(() => {
         clearInterval(checkLoaded);
-        if (!window.google?.maps) {
+        if (!window.google?.maps?.Map) {
           console.error('❌ Google Maps failed to load (timeout)');
           setIsError(true);
         }
@@ -183,14 +183,29 @@ const useGoogleMaps = () => {
 
     console.log('🔄 Loading Google Maps API...');
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry&loading=async`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry`;
     script.async = true;
     script.defer = true;
     script.id = 'google-maps-script'; // Add ID to prevent duplicates
 
     script.onload = () => {
-      console.log('✅ Google Maps API loaded successfully');
-      setIsLoaded(true);
+      // Wait for Map constructor to be available
+      const checkMapConstructor = setInterval(() => {
+        if (window.google?.maps?.Map) {
+          console.log('✅ Google Maps API loaded successfully');
+          setIsLoaded(true);
+          clearInterval(checkMapConstructor);
+        }
+      }, 50);
+
+      // Timeout after 5 seconds
+      setTimeout(() => {
+        clearInterval(checkMapConstructor);
+        if (!window.google?.maps?.Map) {
+          console.error('❌ Google Maps Map constructor not available');
+          setIsError(true);
+        }
+      }, 5000);
     };
 
     script.onerror = () => {

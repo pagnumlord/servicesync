@@ -8,6 +8,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs').promises;
 const http = require('http');
 const socketIo = require('socket.io');
 const cron = require('node-cron');
@@ -49,6 +50,23 @@ pool.connect((err, client, release) => {
   }
 });
 
+// Initialize zones schema on startup
+async function initializeZonesSchema() {
+  try {
+    console.log('🔄 Initializing zones schema...');
+    const schemaPath = path.join(__dirname, 'zones-schema.sql');
+    const schema = await fs.readFile(schemaPath, 'utf8');
+    await pool.query(schema);
+    console.log('✅ Zones schema initialized successfully');
+  } catch (error) {
+    // If schema already exists, that's fine - just log and continue
+    if (error.message && error.message.includes('already exists')) {
+      console.log('ℹ️  Zones schema already exists');
+    } else {
+      console.error('❌ Error initializing zones schema:', error.message);
+    }
+  }
+}
 
 async function updateWorkOrderDates() {
   try {
@@ -73,8 +91,11 @@ async function updateWorkOrderDates() {
   }
 }
 
-// Call this function when the server starts (add after your database connection test)
-updateWorkOrderDates();
+// Initialize database and update work orders on server start
+(async () => {
+  await initializeZonesSchema();
+  await updateWorkOrderDates();
+})();
 
 
 
