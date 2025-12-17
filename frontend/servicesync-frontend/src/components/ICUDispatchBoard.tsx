@@ -218,6 +218,7 @@ function ICUDispatchBoard({
           zone_code: zone.zone_code,
           visible: zone.visible_on_map !== false
         }));
+        console.log('🗺️ Zones loaded for technician detection:', zonesWithCoordinates.length, 'zones');
         setZones(zonesWithCoordinates);
       } catch (error) {
         console.warn('Error loading zones:', error);
@@ -1180,6 +1181,13 @@ function TechnicianColumn({
 
   // Detect technician's current zone based on GPS location
   const techZone = detectZone(technician.latitude, technician.longitude, zones);
+
+  // Debug logging for zone detection
+  if (technician.latitude && technician.longitude) {
+    console.log(`📍 ${technician.first_name} ${technician.last_name}: lat=${technician.latitude}, lng=${technician.longitude}, zone=${techZone || 'None'}`);
+  } else {
+    console.log(`⚠️ ${technician.first_name} ${technician.last_name}: No GPS coordinates available`);
+  }
 
   return (
     <div style={{
