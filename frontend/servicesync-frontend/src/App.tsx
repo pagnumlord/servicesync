@@ -22,14 +22,17 @@ import NewWorkOrderModal from './components/NewWorkOrderModal';
 import CustomerManagement from './components/CustomerManagement';
 import MapPage from './components/MapPage';
 import WorkOrderDetails from './components/WorkOrderDetails';
+import Login from './components/Login';
+import { useAuth } from './context/AuthContext';
 
 const ServiceSync = () => {
+  // Get authentication context
+  const auth = useAuth();
+
   // State management
   const [currentView, setCurrentView] = useState('dispatch'); // Start with dispatch view
   const [currentTime, setCurrentTime] = useState(new Date());
   const [apiStatus, setApiStatus] = useState('Checking...');
-  const [user, setUser] = useState<AppUser | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showWidgetSelector, setShowWidgetSelector] = useState(false);
   const [showNewWorkOrderModal, setShowNewWorkOrderModal] = useState(false);
@@ -149,26 +152,15 @@ const ServiceSync = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // User authentication simulation
+  // Load user's dashboard preferences when authenticated
   useEffect(() => {
-    const mockUser: AppUser = {
-      id: 1,
-      techId: 101,
-      role: 'Parts',
-      permissions: ['dispatch', 'view_all_work_orders', 'create_work_orders'],
-      name: 'Karsten Allen',
-      crew: 'Operations'
-    };
-    
-    setUser(mockUser);
-    setIsAuthenticated(true);
-    
-    // Load user's dashboard preferences
-    const savedWidgets = localStorage.getItem(`dashboard_widgets_${mockUser.id}`);
-    if (savedWidgets) {
-      setDashboardWidgets(JSON.parse(savedWidgets));
+    if (auth.user) {
+      const savedWidgets = localStorage.getItem(`dashboard_widgets_${auth.user.id}`);
+      if (savedWidgets) {
+        setDashboardWidgets(JSON.parse(savedWidgets));
+      }
     }
-  }, []);
+  }, [auth.user]);
 
   // Load technicians
   const loadTechnicians = async () => {
@@ -218,13 +210,12 @@ const ServiceSync = () => {
   }, []);
 
   // Handle user menu clicks
-  const handleUserMenuClick = (action: string) => {
+  const handleUserMenuClick = async (action: string) => {
     console.log('User menu action:', action);
     setShowUserMenu(false);
-    
+
     if (action === 'logout') {
-      setIsAuthenticated(false);
-      setUser(null);
+      await auth.logout();
     }
   };
 
@@ -254,23 +245,23 @@ const handleNewWorkOrder = async (workOrderData: any) => {
       id: `${widgetType.id}_${Date.now()}`,
       position: { x: dashboardWidgets.length * 200, y: 0 }
     };
-    
+
     const updatedWidgets = [...dashboardWidgets, newWidget];
     setDashboardWidgets(updatedWidgets);
-    
-    if (user) {
-      localStorage.setItem(`dashboard_widgets_${user.id}`, JSON.stringify(updatedWidgets));
+
+    if (auth.user) {
+      localStorage.setItem(`dashboard_widgets_${auth.user.id}`, JSON.stringify(updatedWidgets));
     }
-    
+
     setShowWidgetSelector(false);
   };
 
   const removeWidget = (widgetId: string) => {
     const updatedWidgets = dashboardWidgets.filter(w => w.id !== widgetId);
     setDashboardWidgets(updatedWidgets);
-    
-    if (user) {
-      localStorage.setItem(`dashboard_widgets_${user.id}`, JSON.stringify(updatedWidgets));
+
+    if (auth.user) {
+      localStorage.setItem(`dashboard_widgets_${auth.user.id}`, JSON.stringify(updatedWidgets));
     }
   };
 
@@ -356,47 +347,40 @@ const handleNewWorkOrder = async (workOrderData: any) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  if (!isAuthenticated) {
-    // ... Login page untouched for brevity
-    return (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        minHeight: '100vh',
-        backgroundColor: '#f3f4f6'
-      }}>
+  // Show login screen if not authenticated
+  if (!auth.isAuthenticated) {
+    if (auth.isLoading) {
+      return (
         <div style={{
-          backgroundColor: 'white',
-          padding: '2rem',
-          borderRadius: '0.5rem',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-          textAlign: 'center'
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          backgroundColor: '#F3F4F6'
         }}>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '1rem', color: '#1f2937' }}>
-            ServiceSync
-          </h1>
-          <p style={{ color: '#262118', marginBottom: '1.5rem' }}>
-            Work Order Management System
-          </p>
-          <button
-            onClick={() => setIsAuthenticated(true)}
-            style={{
-              backgroundColor: '#3b82f6',
-              color: 'white',
-              padding: '0.75rem 1.5rem',
-              border: 'none',
-              borderRadius: '0.375rem',
-              cursor: 'pointer',
-              fontSize: '1rem',
-              fontWeight: '500'
-            }}
-          >
-            Login
-          </button>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{
+              width: '48px',
+              height: '48px',
+              border: '4px solid #E5E7EB',
+              borderTopColor: '#3B82F6',
+              borderRadius: '50%',
+              animation: 'spin 0.8s linear infinite',
+              margin: '0 auto'
+            }} />
+            <p style={{ marginTop: '1rem', color: '#6B7280' }}>Loading...</p>
+          </div>
+          <style>{`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
         </div>
-      </div>
-    );
+      );
+    }
+
+    return <Login onLoginSuccess={auth.login} />;
   }
 
   return (
@@ -509,9 +493,9 @@ const handleNewWorkOrder = async (workOrderData: any) => {
                 }}
               >
                 <User size={16} />
-                {user?.name || 'User'}
+                {auth.user ? `${auth.user.firstName} ${auth.user.lastName}` : 'User'}
               </button>
-              
+
               {showUserMenu && (
                 <div style={{
                   position: 'absolute',
@@ -527,10 +511,10 @@ const handleNewWorkOrder = async (workOrderData: any) => {
                 }}>
                   <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #e5e7eb' }}>
                     <p style={{ fontSize: '0.875rem', fontWeight: '500', color: '#1f2937', margin: 0 }}>
-                      {user?.name}
+                      {auth.user ? `${auth.user.firstName} ${auth.user.lastName}` : 'User'}
                     </p>
                     <p style={{ fontSize: '0.75rem', color: '#6b7280', margin: 0 }}>
-                      {user?.role} • {user?.crew}
+                      {auth.user?.role} • Employee #{auth.user?.employeeNumber}
                     </p>
                   </div>
                   <button
