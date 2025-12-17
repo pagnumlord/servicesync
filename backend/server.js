@@ -68,6 +68,25 @@ async function initializeZonesSchema() {
   }
 }
 
+// Initialize authentication schema on startup
+async function initializeAuthSchema() {
+  try {
+    console.log('🔄 Initializing authentication schema...');
+    const schemaPath = path.join(__dirname, 'auth-schema.sql');
+    const schema = await fs.readFile(schemaPath, 'utf8');
+    await pool.query(schema);
+    console.log('✅ Authentication schema initialized successfully');
+    console.log('👤 Default admin user: employee_number="22", password="22" (CHANGE THIS!)');
+  } catch (error) {
+    // If schema already exists, that's fine - just log and continue
+    if (error.message && error.message.includes('already exists')) {
+      console.log('ℹ️  Authentication schema already exists');
+    } else {
+      console.error('❌ Error initializing auth schema:', error.message);
+    }
+  }
+}
+
 async function updateWorkOrderDates() {
   try {
     const today = new Date().toISOString().split('T')[0];
@@ -93,6 +112,7 @@ async function updateWorkOrderDates() {
 
 // Initialize database and update work orders on server start
 (async () => {
+  await initializeAuthSchema();
   await initializeZonesSchema();
   await updateWorkOrderDates();
 })();
@@ -2249,6 +2269,130 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (error) {
     console.error('❌ Login error:', error);
     res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+/**
+ * @route GET /api/auth/me
+ * @description Get current user information from token
+ */
+app.get('/api/auth/me', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+
+    if (!token) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
+
+    // Get fresh user data from database
+    const result = await pool.query(`
+      SELECT id, employee_number, username, role, first_name, last_name, email, is_active, last_login
+      FROM users
+      WHERE id = $1 AND is_active = true
+    `, [decoded.userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    const user = result.rows[0];
+
+    // Get user permissions
+    const permissionsResult = await pool.query(`
+      SELECT p.name, p.description, p.category
+      FROM user_permissions up
+      JOIN permissions p ON up.permission_id = p.id
+      WHERE up.user_id = $1
+    `, [user.id]);
+
+    res.json({
+      id: user.id,
+      employeeNumber: user.employee_number,
+      username: user.username,
+      role: user.role,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      email: user.email,
+      lastLogin: user.last_login,
+      permissions: permissionsResult.rows
+    });
+  } catch (error) {
+    console.error('❌ Get user error:', error);
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+    res.status(500).json({ error: 'Failed to get user info' });
+  }
+});
+
+/**
+ * @route POST /api/auth/logout
+ * @description Logout user (could invalidate token in session table)
+ */
+app.post('/api/auth/logout', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+
+    if (token) {
+      // Optional: Delete session from sessions table if you're tracking them
+      await pool.query('DELETE FROM sessions WHERE token = $1', [token]);
+    }
+
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('❌ Logout error:', error);
+    res.status(500).json({ error: 'Logout failed' });
+  }
+});
+
+/**
+ * @route POST /api/auth/refresh
+ * @description Refresh authentication token
+ */
+app.post('/api/auth/refresh', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+
+    if (!token) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    // Verify old token (even if expired)
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret', {
+      ignoreExpiration: true
+    });
+
+    // Check if user is still active
+    const result = await pool.query(`
+      SELECT id, username, role, is_active
+      FROM users
+      WHERE id = $1 AND is_active = true
+    `, [decoded.userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'User not found or inactive' });
+    }
+
+    const user = result.rows[0];
+
+    // Generate new token
+    const newToken = jwt.sign(
+      {
+        userId: user.id,
+        username: user.username,
+        role: user.role
+      },
+      process.env.JWT_SECRET || 'dev-secret',
+      { expiresIn: '8h' }
+    );
+
+    res.json({ token: newToken });
+  } catch (error) {
+    console.error('❌ Token refresh error:', error);
+    res.status(401).json({ error: 'Token refresh failed' });
   }
 });
 
