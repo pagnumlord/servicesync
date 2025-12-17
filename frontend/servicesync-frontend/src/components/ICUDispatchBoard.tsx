@@ -1181,13 +1181,7 @@ function TechnicianColumn({
 
   // Detect technician's current zone based on GPS location
   const techZone = detectZone(technician.latitude, technician.longitude, zones);
-
-  // Debug logging for zone detection
-  if (technician.latitude && technician.longitude) {
-    console.log(`📍 ${technician.first_name} ${technician.last_name}: lat=${technician.latitude}, lng=${technician.longitude}, zone=${techZone || 'None'}`);
-  } else {
-    console.log(`⚠️ ${technician.first_name} ${technician.last_name}: No GPS coordinates available`);
-  }
+  const hasGPS = !!(technician.latitude && technician.longitude);
 
   return (
     <div style={{
@@ -1239,22 +1233,20 @@ function TechnicianColumn({
           </div>
           <div style={{ fontSize: '0.625rem', color: '#6B7280', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span>{technician.crew} • Van {technician.van_number}</span>
-            {techZone && (
-              <span style={{
-                fontSize: '0.625rem',
-                fontWeight: '700',
-                padding: '0.125rem 0.25rem',
-                borderRadius: '0.25rem',
-                backgroundColor: ZONE_COLORS[techZone] || '#6B7280',
-                color: 'white',
-                border: '1px solid white',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-              }}
-              title={`Currently in Zone ${techZone}`}
-              >
-                {techZone}
-              </span>
-            )}
+            <span style={{
+              fontSize: '0.625rem',
+              fontWeight: '700',
+              padding: '0.125rem 0.25rem',
+              borderRadius: '0.25rem',
+              backgroundColor: techZone ? (ZONE_COLORS[techZone] || '#6B7280') : '#9CA3AF',
+              color: 'white',
+              border: '1px solid white',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+            }}
+            title={techZone ? `Currently in Zone ${techZone}` : (hasGPS ? 'Outside service zones' : 'GPS unavailable')}
+            >
+              {techZone || '?'}
+            </span>
           </div>
         </div>
       </div>
