@@ -652,7 +652,7 @@ const MapPage: React.FC = () => {
       alert('Maximum 6 zones allowed (A-F)');
       return;
     }
-    
+
     const newZoneId = String.fromCharCode(65 + zones.length);
     setCurrentZone({
       id: newZoneId,
@@ -662,6 +662,8 @@ const MapPage: React.FC = () => {
       visible: true
     });
     setIsDrawing(true);
+    setActiveMode('zone'); // Ensure we're in zone mode when drawing
+    console.log('🎨 Started drawing zone:', newZoneId);
   }, [zones.length, zoneColors]);
 
   const handleSaveZone = useCallback(async () => {
@@ -711,10 +713,16 @@ const MapPage: React.FC = () => {
     if (!zone) return;
 
     try {
+      // Send complete zone data with toggled visibility
       const response = await fetch(`${API_BASE}/api/zones/${zoneId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          name: zone.name,
+          color: zone.color,
+          description: zone.description || `Service zone ${zone.id}`,
+          boundary: zone.boundary || zone.coordinates,
+          is_active: zone.is_active !== undefined ? zone.is_active : true,
           visible_on_map: !zone.visible
         })
       });
@@ -1245,7 +1253,7 @@ const MapPage: React.FC = () => {
         )}
 
         {/* Map Container */}
-        <div style={{ flex: 1, position: 'relative' }}>
+        <div style={{ flex: 1, position: 'relative', paddingBottom: '120px' }}>
           {/* GPS Tracking Legend */}
           {activeMode === 'gps' && (
             <div style={{
