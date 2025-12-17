@@ -319,7 +319,7 @@ const GoogleMapComponent: React.FC<{
     setCurrentZoneMarkers(newMarkers);
   }, [currentZone]);
 
-  // Initialize map
+  // Initialize map (runs once)
   useEffect(() => {
     if (!mapRef.current || !window.google?.maps || mapInstanceRef.current) return;
 
@@ -340,8 +340,19 @@ const GoogleMapComponent: React.FC<{
       ]
     });
 
-    // Enhanced map click listener for zone drawing
-    mapInstance.addListener('click', (e: any) => {
+    console.log('✅ Google Map initialized');
+    mapInstanceRef.current = mapInstance;
+  }, [center, zoom]);
+
+  // Update map click listener when drawing state changes
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+
+    // Remove all existing click listeners
+    window.google?.maps?.event?.clearListeners(mapInstanceRef.current, 'click');
+
+    // Add new click listener with current state
+    const clickListener = mapInstanceRef.current.addListener('click', (e: any) => {
       console.log('🖱️ Map clicked!', {
         hasLatLng: !!e.latLng,
         isDrawing,
@@ -364,9 +375,15 @@ const GoogleMapComponent: React.FC<{
       }
     });
 
-    console.log('✅ Google Map initialized and click listener added');
-    mapInstanceRef.current = mapInstance;
-  }, [center, zoom, isDrawing, activeMode, onMapClick, currentZone]);
+    console.log('✅ Map click listener updated', { isDrawing, activeMode, hasCurrentZone: !!currentZone });
+
+    // Cleanup
+    return () => {
+      if (clickListener) {
+        window.google?.maps?.event?.removeListener(clickListener);
+      }
+    };
+  }, [isDrawing, activeMode, onMapClick, currentZone]);
 
   // Update markers - ONLY TECHNICIANS, NO WORK ORDER PINS
   useEffect(() => {
@@ -1253,7 +1270,7 @@ const MapPage: React.FC = () => {
         )}
 
         {/* Map Container */}
-        <div style={{ flex: 1, position: 'relative', paddingBottom: '120px' }}>
+        <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column' }}>
           {/* GPS Tracking Legend */}
           {activeMode === 'gps' && (
             <div style={{
@@ -1456,19 +1473,13 @@ const MapPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Status Bar */}
+      {/* Status Bar - Fixed at bottom */}
       <div style={{
-        position: 'absolute',
-        bottom: '1rem',
-        left: '1rem',
-        right: '1rem',
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-        padding: '1rem 1.5rem',
-        borderRadius: '0.5rem',
-        border: '1px solid #e5e7eb',
-        zIndex: 1000,
-        backdropFilter: 'blur(10px)',
-        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+        flexShrink: 0,
+        backgroundColor: 'white',
+        padding: '1rem 2rem',
+        borderTop: '1px solid #e5e7eb',
+        boxShadow: '0 -2px 4px rgba(0, 0, 0, 0.05)'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: '3rem' }}>
