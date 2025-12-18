@@ -1,7 +1,7 @@
 // WorkOrderCard.tsx - Updated with status-based borders and equipment/notes toggle
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { WorkOrder } from '../types';
-import { Clock, MapPin, User, Wrench, AlertTriangle } from 'lucide-react';
+import { Clock, MapPin, User, Wrench, AlertTriangle, PlayCircle, StopCircle } from 'lucide-react';
 
 interface WorkOrderCardProps {
   workOrder: WorkOrder;
@@ -10,19 +10,26 @@ interface WorkOrderCardProps {
   onOpenDetails?: (workOrder: WorkOrder) => void;
   onContextMenu?: (e: React.MouseEvent, workOrder: WorkOrder) => void;
   onQuickView?: (workOrder: WorkOrder) => void;
+  onCheckIn?: (workOrder: WorkOrder) => void;
+  onCheckOut?: (workOrder: WorkOrder) => void;
+  showCheckInOut?: boolean;
 }
 
-const WorkOrderCard: React.FC<WorkOrderCardProps> = ({ 
-  workOrder, 
+const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
+  workOrder,
   showEquipment = true,
   hideTechName = false,
   onOpenDetails,
   onContextMenu,
-  onQuickView
+  onQuickView,
+  onCheckIn,
+  onCheckOut,
+  showCheckInOut = false
 }) => {
-  
+
   // Use a ref to track click timing for distinguishing single vs double clicks
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isHovered, setIsHovered] = useState(false);
 
   // Get status-based border color (main visual indicator)
   const getStatusBorderColor = () => {
@@ -94,6 +101,27 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
     }
   };
 
+  // Get status badge info
+  const getStatusBadge = () => {
+    switch (workOrder.status) {
+      case 'In Progress':
+        return { text: 'In Progress', color: '#10B981', bgColor: '#D1FAE5' };
+      case 'Suspended':
+        return { text: 'Suspended', color: '#8B5CF6', bgColor: '#EDE9FE' };
+      case 'Complete':
+      case 'Completed':
+        return { text: 'Complete', color: '#1E40AF', bgColor: '#DBEAFE' };
+      case 'Assigned':
+        return { text: 'Assigned', color: '#3B82F6', bgColor: '#EFF6FF' };
+      default:
+        return null;
+    }
+  };
+
+  // Check if work order can be checked in/out
+  const canCheckIn = workOrder.status !== 'In Progress' && workOrder.status !== 'Complete' && workOrder.status !== 'Completed';
+  const canCheckOut = workOrder.status === 'In Progress';
+
   // Handle single click vs double click properly
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -154,10 +182,12 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
         boxShadow: getUrgencyGlow()
       }}
       onMouseEnter={(e) => {
+        setIsHovered(true);
         e.currentTarget.style.transform = 'translateY(-1px)';
         e.currentTarget.style.boxShadow = `${getUrgencyGlow()}, 0 4px 6px -1px rgba(0, 0, 0, 0.1)`;
       }}
       onMouseLeave={(e) => {
+        setIsHovered(false);
         e.currentTarget.style.transform = 'translateY(0)';
         e.currentTarget.style.boxShadow = getUrgencyGlow();
       }}
@@ -191,12 +221,32 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
           </div>
         </div>
 
-        {/* Zone indicator and rate type badges */}
+        {/* Zone indicator, rate type, and status badges */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '0.25rem'
+          gap: '0.25rem',
+          flexWrap: 'wrap',
+          justifyContent: 'flex-end'
         }}>
+          {/* Status Badge */}
+          {(() => {
+            const statusBadge = getStatusBadge();
+            return statusBadge && (
+              <span style={{
+                fontSize: '0.625rem',
+                fontWeight: '600',
+                padding: '0.125rem 0.375rem',
+                borderRadius: '0.25rem',
+                backgroundColor: statusBadge.bgColor,
+                color: statusBadge.color,
+                border: `1px solid ${statusBadge.color}20`
+              }}>
+                {statusBadge.text}
+              </span>
+            );
+          })()}
+
           {/* Rate Type Badge - Small indicator only */}
           {workOrder.call_rate && workOrder.call_rate !== 'RT' && (
             <span style={{
@@ -328,11 +378,93 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
           alignItems: 'center',
           gap: '0.25rem'
         }}>
-          <AlertTriangle 
-            size={10} 
+          <AlertTriangle
+            size={10}
             color={workOrder.call_urgency === 'Emergency' ? '#DC2626' : '#F59E0B'}
             fill={workOrder.call_urgency === 'Emergency' ? '#DC2626' : '#F59E0B'}
           />
+        </div>
+      )}
+
+      {/* Check-In/Check-Out Buttons - Show on hover */}
+      {showCheckInOut && isHovered && (canCheckIn || canCheckOut) && (
+        <div
+          style={{
+            marginTop: '0.5rem',
+            paddingTop: '0.5rem',
+            borderTop: '1px solid #E5E7EB',
+            display: 'flex',
+            gap: '0.5rem'
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {canCheckIn && onCheckIn && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onCheckIn(workOrder);
+              }}
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.25rem',
+                padding: '0.375rem 0.5rem',
+                fontSize: '0.75rem',
+                fontWeight: '600',
+                color: 'white',
+                backgroundColor: '#10B981',
+                border: 'none',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#059669';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#10B981';
+              }}
+            >
+              <PlayCircle size={14} />
+              <span>Check In</span>
+            </button>
+          )}
+
+          {canCheckOut && onCheckOut && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onCheckOut(workOrder);
+              }}
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.25rem',
+                padding: '0.375rem 0.5rem',
+                fontSize: '0.75rem',
+                fontWeight: '600',
+                color: 'white',
+                backgroundColor: '#EF4444',
+                border: 'none',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#DC2626';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#EF4444';
+              }}
+            >
+              <StopCircle size={14} />
+              <span>Check Out</span>
+            </button>
+          )}
         </div>
       )}
     </div>

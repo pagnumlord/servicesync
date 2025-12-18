@@ -3009,6 +3009,247 @@ app.get('/api/work-orders/status-summary', async (req, res) => {
   }
 });
 
+/**
+ * @route POST /api/work-orders/:id/check-in
+ * @description Tech checks into a work order (arrives on-site)
+ * Sets status to "In Progress" and records start of visit
+ */
+app.post('/api/work-orders/:id/check-in', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const workOrderId = req.params.id;
+    const {
+      technician_id,
+      check_in_time,
+      user_id
+    } = req.body;
+
+    const checkInDate = new Date().toISOString().split('T')[0];
+    const checkInDateTime = check_in_time || new Date().toISOString();
+
+    console.log(`✅ Tech checking in to work order ${workOrderId} at ${checkInDateTime}`);
+
+    // Validate work order exists
+    const woExists = await client.query(
+      'SELECT id, status, assigned_tech_id FROM work_orders WHERE id = $1',
+      [workOrderId]
+    );
+
+    if (woExists.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Work order not found' });
+    }
+
+    // Update work order status to "In Progress"
+    const updateResult = await client.query(`
+      UPDATE work_orders
+      SET status = 'In Progress',
+          assigned_tech_id = COALESCE($2, assigned_tech_id),
+          updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+    `, [workOrderId, technician_id]);
+
+    // Record check-in as metadata (we'll store this temporarily until check-out)
+    // For now, just update status - we'll create the assignment record on check-out
+    await client.query(`
+      UPDATE work_orders
+      SET status_notes = CONCAT(
+        COALESCE(status_notes, ''),
+        E'\nChecked in at ',
+        $2::text
+      )
+      WHERE id = $1
+    `, [workOrderId, checkInDateTime]);
+
+    await client.query('COMMIT');
+
+    console.log(`✅ Tech checked in successfully`);
+
+    // Broadcast WebSocket update
+    broadcastWorkOrderUpdate(updateResult.rows[0], 'checked_in', [checkInDate]);
+
+    res.json({
+      success: true,
+      message: 'Checked in successfully',
+      workOrder: updateResult.rows[0],
+      check_in_time: checkInDateTime
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Check-in error:', error);
+    res.status(500).json({
+      error: 'Failed to check in',
+      details: error.message
+    });
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * @route POST /api/work-orders/:id/check-out
+ * @description Tech checks out of a work order (leaves site)
+ * Records the assignment and sets final status
+ */
+app.post('/api/work-orders/:id/check-out', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const workOrderId = req.params.id;
+    const {
+      technician_id,
+      status_after_visit, // 'Active', 'Suspended', 'Complete'
+      suspension_reason,
+      notes,
+      time_slot,
+      user_id
+    } = req.body;
+
+    const checkOutDate = new Date().toISOString().split('T')[0];
+
+    console.log(`🏁 Tech checking out of work order ${workOrderId} with status: ${status_after_visit}`);
+
+    // Validate work order exists
+    const woResult = await client.query(
+      'SELECT id, status, assigned_tech_id FROM work_orders WHERE id = $1',
+      [workOrderId]
+    );
+
+    if (woResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Work order not found' });
+    }
+
+    const currentWO = woResult.rows[0];
+    const finalTechId = technician_id || currentWO.assigned_tech_id;
+
+    // Record the assignment (physical visit)
+    const assignmentResult = await client.query(`
+      INSERT INTO work_order_assignments (
+        work_order_id,
+        assignment_date,
+        technician_id,
+        status_after_visit,
+        time_slot,
+        suspension_reason,
+        notes,
+        created_by_user_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `, [
+      workOrderId,
+      checkOutDate,
+      finalTechId,
+      status_after_visit,
+      time_slot,
+      suspension_reason,
+      notes,
+      user_id
+    ]);
+
+    // Update work order with final status
+    const updateFields = ['status = $1', 'updated_at = NOW()'];
+    const updateValues = [status_after_visit];
+    let paramCount = 2;
+
+    if (status_after_visit === 'Suspended') {
+      updateFields.push(`suspended_date = $${paramCount}`);
+      updateValues.push(checkOutDate);
+      paramCount++;
+
+      if (suspension_reason) {
+        updateFields.push(`suspension_reason = $${paramCount}`);
+        updateValues.push(suspension_reason);
+        paramCount++;
+      }
+    } else if (status_after_visit === 'Complete') {
+      updateFields.push(`completed_date = $${paramCount}`);
+      updateValues.push(checkOutDate);
+      paramCount++;
+    }
+
+    updateValues.push(workOrderId);
+    const updateQuery = `
+      UPDATE work_orders
+      SET ${updateFields.join(', ')}
+      WHERE id = $${paramCount}
+      RETURNING *
+    `;
+
+    const updatedWO = await client.query(updateQuery, updateValues);
+
+    await client.query('COMMIT');
+
+    console.log(`✅ Tech checked out successfully`);
+
+    // Broadcast WebSocket update
+    broadcastWorkOrderUpdate(updatedWO.rows[0], 'checked_out', [checkOutDate]);
+
+    res.json({
+      success: true,
+      message: 'Checked out successfully',
+      workOrder: updatedWO.rows[0],
+      assignment: assignmentResult.rows[0]
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Check-out error:', error);
+    res.status(500).json({
+      error: 'Failed to check out',
+      details: error.message
+    });
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * @route GET /api/work-orders/:id/check-in-status
+ * @description Check if a work order is currently checked in
+ */
+app.get('/api/work-orders/:id/check-in-status', async (req, res) => {
+  try {
+    const workOrderId = req.params.id;
+
+    const result = await pool.query(`
+      SELECT
+        id,
+        status,
+        assigned_tech_id,
+        status_notes
+      FROM work_orders
+      WHERE id = $1
+    `, [workOrderId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Work order not found' });
+    }
+
+    const wo = result.rows[0];
+    const isCheckedIn = wo.status === 'In Progress';
+
+    res.json({
+      work_order_id: parseInt(workOrderId),
+      is_checked_in: isCheckedIn,
+      status: wo.status,
+      assigned_tech_id: wo.assigned_tech_id
+    });
+
+  } catch (error) {
+    console.error('❌ Check-in status error:', error);
+    res.status(500).json({
+      error: 'Failed to get check-in status',
+      details: error.message
+    });
+  }
+});
+
 
 // ============================================================
 // SERVER.JS ADDITIONS - Customer Contacts & Notes API Endpoints

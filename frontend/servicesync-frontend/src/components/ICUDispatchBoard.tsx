@@ -7,6 +7,7 @@ import QueueSelectionModal from './QueueSelectionModal';
 import CalendarView from './CalendarView';
 import { getStatusColor, getQueueColor, shouldUseTypeColoring } from '../utils/constants';
 import QuickNotesPreview from './QuickNotesPreview';
+import CheckOutModal from './CheckOutModal';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -98,6 +99,8 @@ function ICUDispatchBoard({
   } | null>(null);
   const [showQueueModal, setShowQueueModal] = useState(false);
   const [selectedWorkOrderForCompletion, setSelectedWorkOrderForCompletion] = useState<EnhancedWorkOrder | null>(null);
+  const [showCheckOutModal, setShowCheckOutModal] = useState(false);
+  const [selectedWorkOrderForCheckOut, setSelectedWorkOrderForCheckOut] = useState<EnhancedWorkOrder | null>(null);
   const [queues, setQueues] = useState<Queue[]>([]);
   const [draggedWorkOrder, setDraggedWorkOrder] = useState<EnhancedWorkOrder | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
@@ -501,6 +504,82 @@ function ICUDispatchBoard({
     }
   };
 
+  // Handle tech check-in
+  const handleCheckIn = async (workOrder: EnhancedWorkOrder) => {
+    if (!workOrder?.id) return;
+    try {
+      const response = await fetch(`${API_BASE}/work-orders/${workOrder.id}/check-in`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          technician_id: workOrder.assigned_tech_id,
+          check_in_time: new Date().toISOString()
+        })
+      });
+
+      if (response.ok) {
+        console.log('✅ Tech checked in successfully');
+        emit('workOrderUpdated', {
+          ...workOrder,
+          affectedDates: [currentDate.toISOString().split('T')[0]]
+        });
+        loadDispatchData(false);
+      } else {
+        const error = await response.json();
+        alert(`Failed to check in: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('⚠️ Error checking in:', error);
+      alert('Failed to check in. Please try again.');
+    }
+  };
+
+  // Handle tech check-out
+  const handleCheckOut = (workOrder: EnhancedWorkOrder) => {
+    setSelectedWorkOrderForCheckOut(workOrder);
+    setShowCheckOutModal(true);
+  };
+
+  // Handle check-out modal submission
+  const handleCheckOutSubmit = async (data: {
+    status_after_visit: string;
+    suspension_reason?: string;
+    notes?: string;
+  }) => {
+    if (!selectedWorkOrderForCheckOut) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/work-orders/${selectedWorkOrderForCheckOut.id}/check-out`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          technician_id: selectedWorkOrderForCheckOut.assigned_tech_id,
+          status_after_visit: data.status_after_visit,
+          suspension_reason: data.suspension_reason,
+          notes: data.notes,
+          time_slot: selectedWorkOrderForCheckOut.scheduled_time_slot
+        })
+      });
+
+      if (response.ok) {
+        console.log('🏁 Tech checked out successfully');
+        emit('workOrderUpdated', {
+          ...selectedWorkOrderForCheckOut,
+          affectedDates: [currentDate.toISOString().split('T')[0]]
+        });
+        setShowCheckOutModal(false);
+        setSelectedWorkOrderForCheckOut(null);
+        loadDispatchData(false);
+      } else {
+        const error = await response.json();
+        alert(`Failed to check out: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('⚠️ Error checking out:', error);
+      alert('Failed to check out. Please try again.');
+    }
+  };
+
   const navigateDate = (direction: number) => {
     const newDate = new Date(currentDate);
     if (viewMode === 'calendar') {
@@ -811,13 +890,16 @@ function ICUDispatchBoard({
                           onDragEnd={() => setDraggedWorkOrder(null)}
                           onContextMenu={(e) => handleContextMenu(e, workOrder)}
                         >
-                          <WorkOrderCard 
+                          <WorkOrderCard
                             workOrder={workOrder}
                             showEquipment={infoDisplayMode === 'equipment'}
                             hideTechName={false}
                             onQuickView={setQuickPreviewWorkOrder}
                             onOpenDetails={handleWorkOrderSelect}
                             onContextMenu={(e) => handleContextMenu(e, workOrder)}
+                            onCheckIn={handleCheckIn}
+                            onCheckOut={handleCheckOut}
+                            showCheckInOut={true}
                           />
                         </div>
                       ))}
@@ -889,13 +971,16 @@ function ICUDispatchBoard({
                           onDragEnd={() => setDraggedWorkOrder(null)}
                           onContextMenu={(e) => handleContextMenu(e, workOrder)}
                         >
-                          <WorkOrderCard 
+                          <WorkOrderCard
                             workOrder={workOrder}
                             showEquipment={infoDisplayMode === 'equipment'}
                             hideTechName={false}
                             onQuickView={setQuickPreviewWorkOrder}
                             onOpenDetails={handleWorkOrderSelect}
                             onContextMenu={(e) => handleContextMenu(e, workOrder)}
+                            onCheckIn={handleCheckIn}
+                            onCheckOut={handleCheckOut}
+                            showCheckInOut={true}
                           />
                         </div>
                       ))}
@@ -966,13 +1051,16 @@ function ICUDispatchBoard({
                           onDragEnd={() => setDraggedWorkOrder(null)}
                           onContextMenu={(e) => handleContextMenu(e, workOrder)}
                         >
-                          <WorkOrderCard 
+                          <WorkOrderCard
                             workOrder={workOrder}
                             showEquipment={infoDisplayMode === 'equipment'}
                             hideTechName={false}
                             onQuickView={setQuickPreviewWorkOrder}
                             onOpenDetails={handleWorkOrderSelect}
                             onContextMenu={(e) => handleContextMenu(e, workOrder)}
+                            onCheckIn={handleCheckIn}
+                            onCheckOut={handleCheckOut}
+                            showCheckInOut={true}
                           />
                         </div>
                       ))}
@@ -1125,6 +1213,18 @@ function ICUDispatchBoard({
           onConfirm={handleCompleteWorkOrder}
           queues={queues}
           workOrder={selectedWorkOrderForCompletion}
+        />
+      )}
+
+      {/* Check-Out Modal */}
+      {showCheckOutModal && selectedWorkOrderForCheckOut && (
+        <CheckOutModal
+          workOrder={selectedWorkOrderForCheckOut}
+          onClose={() => {
+            setShowCheckOutModal(false);
+            setSelectedWorkOrderForCheckOut(null);
+          }}
+          onCheckOut={handleCheckOutSubmit}
         />
       )}
 
@@ -1448,13 +1548,16 @@ function CompactTimeSlot({
                 onDragEnd={() => setDraggedWorkOrder(null)}
                 onContextMenu={(e) => onWorkOrderContextMenu(e, workOrder)}
               >
-                <WorkOrderCard 
+                <WorkOrderCard
                   workOrder={workOrder}
                   showEquipment={infoDisplayMode === 'equipment'}
                   hideTechName={true}
                   onQuickView={setQuickPreviewWorkOrder}
                   onOpenDetails={onWorkOrderSelect}
                   onContextMenu={(e) => onWorkOrderContextMenu(e, workOrder)}
+                  onCheckIn={handleCheckIn}
+                  onCheckOut={handleCheckOut}
+                  showCheckInOut={true}
                 />
               </div>
             ))}
