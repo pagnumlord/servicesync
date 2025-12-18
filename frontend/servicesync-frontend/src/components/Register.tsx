@@ -81,7 +81,7 @@ function Register({ onRegisterSuccess, onBackToLogin }: RegisterProps) {
             marginBottom: '1rem'
           }}>
             <img
-              src="/logo192.png"
+              src="/ServiceSyncLogo.png"
               alt="ServiceSync Logo"
               style={{
                 width: '80px',

@@ -421,11 +421,11 @@ const handleNewWorkOrder = async (workOrderData: any) => {
           padding: '1rem 2rem',
           borderBottom: '1px solid #374151' // FANCY: Darker border line
         }}>
-          {/* Logo with ServiceSync and ICU Logos */}
+          {/* Logo with ServiceSync Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             {/* ServiceSync Logo */}
             <img
-              src="/logo192.png"
+              src="/ServiceSyncLogo.png"
               alt="ServiceSync Logo"
               style={{
                 width: '48px',
@@ -435,26 +435,14 @@ const handleNewWorkOrder = async (workOrderData: any) => {
               }}
             />
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-              <h1 style={{
-                fontSize: '1.75rem',
-                fontWeight: '700',
-                color: 'white',
-                margin: 0
-              }}>
-                ServiceSync
-              </h1>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <img
-                  src="/ICULogo.png"
-                  alt="ICU Mechanical"
-                  style={{
-                    height: '20px',
-                    width: 'auto'
-                  }}
-                />
-              </div>
-            </div>
+            <h1 style={{
+              fontSize: '1.75rem',
+              fontWeight: '700',
+              color: 'white',
+              margin: 0
+            }}>
+              ServiceSync
+            </h1>
           </div>
 
           {/* Status and time */}
@@ -492,6 +480,16 @@ const handleNewWorkOrder = async (workOrderData: any) => {
                 WebSocket: {webSocketStatus}
               </span>
             </div>
+
+            {/* ICU Logo */}
+            <img
+              src="/ICULogo.png"
+              alt="ICU Mechanical"
+              style={{
+                height: '24px',
+                width: 'auto'
+              }}
+            />
 
             {/* User Menu */}
             <div style={{ position: 'relative' }} ref={userMenuRef}>

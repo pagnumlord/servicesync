@@ -77,7 +77,7 @@ function Login({ onLoginSuccess, onShowRegister }: LoginProps) {
             marginBottom: '1rem'
           }}>
             <img
-              src="/logo192.png"
+              src="/ServiceSyncLogo.png"
               alt="ServiceSync Logo"
               style={{
                 width: '80px',
