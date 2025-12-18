@@ -421,23 +421,21 @@ const handleNewWorkOrder = async (workOrderData: any) => {
           padding: '1rem 2rem',
           borderBottom: '1px solid #374151' // FANCY: Darker border line
         }}>
-          {/* Logo with ORANGE WRENCH ICON */}
+          {/* Logo with ServiceSync and ICU Logos */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            {/* Orange wrench square icon */}
-            <div style={{
-              width: '48px',
-              height: '48px',
-              backgroundColor: '#ffb350ff', // FANCY: Safety Orange background
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
-            }}>
-              <Wrench style={{ color: '#1F2937', fontSize: '1.5rem' }} size={24} /> 
-            </div>
-            
-            <div>
+            {/* ServiceSync Logo */}
+            <img
+              src="/logo192.png"
+              alt="ServiceSync Logo"
+              style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '8px',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+              }}
+            />
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
               <h1 style={{
                 fontSize: '1.75rem',
                 fontWeight: '700',
@@ -446,13 +444,16 @@ const handleNewWorkOrder = async (workOrderData: any) => {
               }}>
                 ServiceSync
               </h1>
-              <p style={{
-                fontSize: '0.875rem',
-                color: '#9CA3AF', // Muted light gray
-                margin: 0
-              }}>
-                ICU Mechanical
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <img
+                  src="/ICULogo.png"
+                  alt="ICU Mechanical"
+                  style={{
+                    height: '20px',
+                    width: 'auto'
+                  }}
+                />
+              </div>
             </div>
           </div>
 

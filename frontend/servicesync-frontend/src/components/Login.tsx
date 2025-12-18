@@ -74,16 +74,16 @@ function Login({ onLoginSuccess, onShowRegister }: LoginProps) {
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: '64px',
-            height: '64px',
-            borderRadius: '16px',
-            backgroundColor: '#3B82F6',
             marginBottom: '1rem'
           }}>
-            <span style={{
-              fontSize: '2rem',
-              color: 'white'
-            }}>🔧</span>
+            <img
+              src="/logo192.png"
+              alt="ServiceSync Logo"
+              style={{
+                width: '80px',
+                height: '80px'
+              }}
+            />
           </div>
           <h1 style={{
             fontSize: '2rem',
