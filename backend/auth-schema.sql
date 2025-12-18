@@ -107,14 +107,14 @@ INSERT INTO users (employee_number, username, password_hash, first_name, last_na
 VALUES (
   '22',
   '22',
-  '$2b$10$rKqF.8l8yL5f3OvQH0FGweN1d5.LqE4Tc3xNX5R1ZqQxJ0yZqGEHK', -- bcrypt hash of '22'
+  '$2b$10$YfT5NIEfafiWtUiHXx6nW.EZQUPgLJVFcxbu22chqj3bSzhKmcIMu', -- bcrypt hash of '22'
   'Karsten',
   'Allen',
   'karsten@icumechanical.com',
   'admin',
   true
 )
-ON CONFLICT (employee_number) DO NOTHING;
+ON CONFLICT (employee_number) DO UPDATE SET password_hash = EXCLUDED.password_hash;
 
 -- Grant all permissions to admin user
 INSERT INTO user_permissions (user_id, permission_id)
