@@ -34,16 +34,37 @@ export const useWebSocket = (options: UseWebSocketOptions = {}): UseWebSocketRet
     events = {}
   } = options;
 
-  const [isConnected, setIsConnected] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'Connected' | 'Disconnected' | 'Connecting' | 'Error'>('Disconnected');
   const wsManager = useRef(WebSocketManager.getInstance());
+
+  // Check if already connected when initializing state
+  const initialStatus = wsManager.current.isConnected() ? 'Connected' : 'Disconnected';
+  const [isConnected, setIsConnected] = useState(wsManager.current.isConnected());
+  const [connectionStatus, setConnectionStatus] = useState<'Connected' | 'Disconnected' | 'Connecting' | 'Error'>(initialStatus);
   const socketRef = useRef<Socket | null>(null);
 
   // Connect to WebSocket
   const connect = useCallback(() => {
+    // Check if already connected
+    if (wsManager.current.isConnected()) {
+      console.log('✅ Already connected to WebSocket');
+      const socket = wsManager.current.getSocket();
+      if (socket) {
+        socketRef.current = socket;
+        setIsConnected(true);
+        setConnectionStatus('Connected');
+
+        // Register custom event handlers for this component
+        Object.entries(events).forEach(([event, handler]) => {
+          socket.on(event, handler);
+        });
+
+        return socket;
+      }
+    }
+
     console.log('🔌 Attempting to connect to WebSocket...');
     setConnectionStatus('Connecting');
-    
+
     const socket = wsManager.current.connect(url);
     socketRef.current = socket;
 
