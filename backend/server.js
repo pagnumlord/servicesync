@@ -38,6 +38,13 @@ const pool = new Pool({
   database: process.env.DB_NAME || 'servicesync_dev',
   password: process.env.DB_PASSWORD,
   port: process.env.DB_PORT || 5432,
+  // SSL configuration for Windows PostgreSQL
+  ssl: false,
+  // Connection timeout settings
+  connectionTimeoutMillis: 5000,
+  // Retry on connection failure
+  max: 20,
+  idleTimeoutMillis: 30000,
 });
 
 // Test database connection on startup
