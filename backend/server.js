@@ -2229,11 +2229,11 @@ app.post('/api/auth/login', async (req, res) => {
 
     console.log(`🔐 Login attempt for user: ${username}`);
 
-    // Retrieve user from database by username
+    // Retrieve user from database by username, email, or employee_number
     const result = await pool.query(`
-      SELECT id, username, password_hash, role, first_name, last_name, is_active
+      SELECT id, employee_number, username, email, password_hash, role, first_name, last_name, is_active
       FROM users
-      WHERE username = $1 AND is_active = true
+      WHERE (username = $1 OR email = $1 OR employee_number = $1) AND is_active = true
     `, [username]);
 
     if (result.rows.length === 0) {
@@ -2249,6 +2249,9 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    // Update last login timestamp
+    await pool.query(`UPDATE users SET last_login = NOW() WHERE id = $1`, [user.id]);
+
     // Generate JSON Web Token
     const token = jwt.sign(
       {
@@ -2260,13 +2263,15 @@ app.post('/api/auth/login', async (req, res) => {
       { expiresIn: '8h' }
     );
 
-    console.log(`✅ User ${username} logged in successfully`);
+    console.log(`✅ User ${username} logged in successfully as ${user.first_name} ${user.last_name}`);
 
     res.json({
       token,
       user: {
         id: user.id,
+        employeeNumber: user.employee_number,
         username: user.username,
+        email: user.email,
         role: user.role,
         firstName: user.first_name,
         lastName: user.last_name
@@ -2276,6 +2281,92 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (error) {
     console.error('❌ Login error:', error);
     res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+/**
+ * @route POST /api/auth/register
+ * @description Register a new user with ICU Mechanical email
+ * @body {Object} userData - { employeeNumber, firstName, lastName, email }
+ * @returns {Object} JWT token and user information
+ */
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { employeeNumber, firstName, lastName, email } = req.body;
+
+    console.log(`📝 Registration attempt for: ${email}`);
+
+    // Validation
+    if (!employeeNumber || !firstName || !lastName || !email) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    // Validate email domain
+    if (!email.toLowerCase().endsWith('@icumechanical.com')) {
+      return res.status(400).json({ error: 'Must use an @icumechanical.com email address' });
+    }
+
+    // Check if employee number already exists
+    const employeeCheck = await pool.query(
+      'SELECT id FROM users WHERE employee_number = $1',
+      [employeeNumber]
+    );
+
+    if (employeeCheck.rows.length > 0) {
+      return res.status(400).json({ error: 'Employee number already registered' });
+    }
+
+    // Check if email already exists
+    const emailCheck = await pool.query(
+      'SELECT id FROM users WHERE email = $1',
+      [email.toLowerCase()]
+    );
+
+    if (emailCheck.rows.length > 0) {
+      return res.status(400).json({ error: 'Email already registered' });
+    }
+
+    // Hash the employee number as the initial password
+    const passwordHash = await bcrypt.hash(employeeNumber, 10);
+
+    // Create the user with email as username
+    const result = await pool.query(`
+      INSERT INTO users (employee_number, username, password_hash, first_name, last_name, email, role, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6, 'viewer', true)
+      RETURNING id, employee_number, username, email, role, first_name, last_name
+    `, [employeeNumber, email.toLowerCase(), passwordHash, firstName, lastName, email.toLowerCase()]);
+
+    const user = result.rows[0];
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        userId: user.id,
+        username: user.username,
+        role: user.role
+      },
+      process.env.JWT_SECRET || 'dev-secret',
+      { expiresIn: '8h' }
+    );
+
+    console.log(`✅ New user registered: ${email} (Employee #${employeeNumber})`);
+
+    res.status(201).json({
+      token,
+      user: {
+        id: user.id,
+        employeeNumber: user.employee_number,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        firstName: user.first_name,
+        lastName: user.last_name
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Registration error:', error);
+    res.status(500).json({ error: 'Registration failed' });
   }
 });
 

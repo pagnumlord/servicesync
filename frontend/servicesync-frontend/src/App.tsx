@@ -23,11 +23,15 @@ import CustomerManagement from './components/CustomerManagement';
 import MapPage from './components/MapPage';
 import WorkOrderDetails from './components/WorkOrderDetails';
 import Login from './components/Login';
+import Register from './components/Register';
 import { useAuth } from './context/AuthContext';
 
 const ServiceSync = () => {
   // Get authentication context
   const auth = useAuth();
+
+  // Auth screen state
+  const [showRegister, setShowRegister] = useState(false);
 
   // State management
   const [currentView, setCurrentView] = useState('dispatch'); // Start with dispatch view
@@ -380,7 +384,21 @@ const handleNewWorkOrder = async (workOrderData: any) => {
       );
     }
 
-    return <Login onLoginSuccess={auth.login} />;
+    if (showRegister) {
+      return (
+        <Register
+          onRegisterSuccess={auth.login}
+          onBackToLogin={() => setShowRegister(false)}
+        />
+      );
+    }
+
+    return (
+      <Login
+        onLoginSuccess={auth.login}
+        onShowRegister={() => setShowRegister(true)}
+      />
+    );
   }
 
   return (

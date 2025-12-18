@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
-import { LogIn, AlertCircle } from 'lucide-react';
+import { UserPlus, AlertCircle, ArrowLeft } from 'lucide-react';
 
 const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
 
-interface LoginProps {
-  onLoginSuccess: (token: string, user: any) => void;
-  onShowRegister?: () => void;
+interface RegisterProps {
+  onRegisterSuccess: (token: string, user: any) => void;
+  onBackToLogin: () => void;
 }
 
-function Login({ onLoginSuccess, onShowRegister }: LoginProps) {
+function Register({ onRegisterSuccess, onBackToLogin }: RegisterProps) {
   const [employeeNumber, setEmployeeNumber] = useState('');
-  const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -20,21 +22,23 @@ function Login({ onLoginSuccess, onShowRegister }: LoginProps) {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE}/api/auth/login`, {
+      const response = await fetch(`${API_BASE}/api/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          username: employeeNumber,
-          password: password
+          employeeNumber,
+          firstName,
+          lastName,
+          email
         })
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Login failed');
+        throw new Error(data.error || 'Registration failed');
       }
 
       // Store token in localStorage
@@ -42,10 +46,10 @@ function Login({ onLoginSuccess, onShowRegister }: LoginProps) {
       localStorage.setItem('user', JSON.stringify(data.user));
 
       // Call success callback
-      onLoginSuccess(data.token, data.user);
+      onRegisterSuccess(data.token, data.user);
     } catch (error: any) {
-      setError(error.message || 'Login failed. Please try again.');
-      console.error('Login error:', error);
+      setError(error.message || 'Registration failed. Please try again.');
+      console.error('Registration error:', error);
     } finally {
       setIsLoading(false);
     }
@@ -98,20 +102,42 @@ function Login({ onLoginSuccess, onShowRegister }: LoginProps) {
           }}>ICU Mechanical Dispatch System</p>
         </div>
 
-        {/* Login Card */}
+        {/* Register Card */}
         <div style={{
           backgroundColor: 'white',
           borderRadius: '0.75rem',
           boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
           padding: '2rem'
         }}>
+          {/* Back Button */}
+          <button
+            onClick={onBackToLogin}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              fontSize: '0.875rem',
+              color: '#6B7280',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              marginBottom: '1rem',
+              padding: '0.5rem 0'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.color = '#3B82F6'}
+            onMouseLeave={(e) => e.currentTarget.style.color = '#6B7280'}
+          >
+            <ArrowLeft style={{ width: '1rem', height: '1rem' }} />
+            Back to login
+          </button>
+
           <h2 style={{
             fontSize: '1.25rem',
             fontWeight: '600',
             color: '#1F2937',
             marginBottom: '1.5rem',
             textAlign: 'center'
-          }}>Sign in to your account</h2>
+          }}>Create your account</h2>
 
           {/* Error Message */}
           {error && (
@@ -130,7 +156,7 @@ function Login({ onLoginSuccess, onShowRegister }: LoginProps) {
             </div>
           )}
 
-          {/* Login Form */}
+          {/* Registration Form */}
           <form onSubmit={handleSubmit}>
             <div style={{ marginBottom: '1rem' }}>
               <label style={{
@@ -146,7 +172,71 @@ function Login({ onLoginSuccess, onShowRegister }: LoginProps) {
                 type="text"
                 value={employeeNumber}
                 onChange={(e) => setEmployeeNumber(e.target.value)}
-                placeholder="Enter your employee number"
+                placeholder="Your employee number"
+                disabled={isLoading}
+                required
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  fontSize: '0.875rem',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '0.5rem',
+                  outline: 'none',
+                  transition: 'border-color 0.2s',
+                  boxSizing: 'border-box'
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#3B82F6'}
+                onBlur={(e) => e.target.style.borderColor = '#D1D5DB'}
+              />
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                color: '#374151',
+                marginBottom: '0.5rem'
+              }}>
+                First Name
+              </label>
+              <input
+                type="text"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="Your first name"
+                disabled={isLoading}
+                required
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  fontSize: '0.875rem',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '0.5rem',
+                  outline: 'none',
+                  transition: 'border-color 0.2s',
+                  boxSizing: 'border-box'
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#3B82F6'}
+                onBlur={(e) => e.target.style.borderColor = '#D1D5DB'}
+              />
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                color: '#374151',
+                marginBottom: '0.5rem'
+              }}>
+                Last Name
+              </label>
+              <input
+                type="text"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="Your last name"
                 disabled={isLoading}
                 required
                 style={{
@@ -172,13 +262,13 @@ function Login({ onLoginSuccess, onShowRegister }: LoginProps) {
                 color: '#374151',
                 marginBottom: '0.5rem'
               }}>
-                Password
+                Email Address
               </label>
               <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="yourname@icumechanical.com"
                 disabled={isLoading}
                 required
                 style={{
@@ -194,6 +284,14 @@ function Login({ onLoginSuccess, onShowRegister }: LoginProps) {
                 onFocus={(e) => e.target.style.borderColor = '#3B82F6'}
                 onBlur={(e) => e.target.style.borderColor = '#D1D5DB'}
               />
+              <p style={{
+                fontSize: '0.75rem',
+                color: '#6B7280',
+                marginTop: '0.25rem',
+                marginBottom: 0
+              }}>
+                Must use your @icumechanical.com email
+              </p>
             </div>
 
             <button
@@ -232,12 +330,12 @@ function Login({ onLoginSuccess, onShowRegister }: LoginProps) {
                     borderRadius: '50%',
                     animation: 'spin 0.6s linear infinite'
                   }} />
-                  Signing in...
+                  Creating account...
                 </>
               ) : (
                 <>
-                  <LogIn style={{ width: '1.25rem', height: '1.25rem' }} />
-                  Sign in
+                  <UserPlus style={{ width: '1.25rem', height: '1.25rem' }} />
+                  Create Account
                 </>
               )}
             </button>
@@ -249,39 +347,12 @@ function Login({ onLoginSuccess, onShowRegister }: LoginProps) {
           marginTop: '1.5rem',
           textAlign: 'center'
         }}>
-          {onShowRegister && (
-            <div style={{ marginBottom: '1rem' }}>
-              <p style={{
-                fontSize: '0.875rem',
-                color: '#6B7280',
-                margin: '0 0 0.5rem 0'
-              }}>
-                Don't have an account?
-              </p>
-              <button
-                onClick={onShowRegister}
-                style={{
-                  fontSize: '0.875rem',
-                  fontWeight: '600',
-                  color: '#3B82F6',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  textDecoration: 'underline'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.color = '#2563EB'}
-                onMouseLeave={(e) => e.currentTarget.style.color = '#3B82F6'}
-              >
-                Create Account
-              </button>
-            </div>
-          )}
           <p style={{
             fontSize: '0.75rem',
             color: '#6B7280',
             margin: 0
           }}>
-            Default Login: Employee #22, Password: 22
+            Your initial password will be your employee number
           </p>
           <p style={{
             fontSize: '0.75rem',
@@ -304,4 +375,4 @@ function Login({ onLoginSuccess, onShowRegister }: LoginProps) {
   );
 }
 
-export default Login;
+export default Register;
