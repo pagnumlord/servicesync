@@ -94,6 +94,26 @@ async function initializeAuthSchema() {
   }
 }
 
+// Initialize work order status and assignment tracking schema on startup
+async function initializeWorkOrderStatusSchema() {
+  try {
+    console.log('🔄 Initializing work order status schema...');
+    const schemaPath = path.join(__dirname, 'work-order-status-schema.sql');
+    const schema = await fs.readFile(schemaPath, 'utf8');
+    await pool.query(schema);
+    console.log('✅ Work order status schema initialized successfully');
+    console.log('📋 Status tracking: Active, Suspended, Complete');
+    console.log('📅 Assignment tracking: Physical visits only');
+  } catch (error) {
+    // If schema already exists, that's fine - just log and continue
+    if (error.message && error.message.includes('already exists')) {
+      console.log('ℹ️  Work order status schema already exists');
+    } else {
+      console.error('❌ Error initializing work order status schema:', error.message);
+    }
+  }
+}
+
 async function updateWorkOrderDates() {
   try {
     const today = new Date().toISOString().split('T')[0];
@@ -121,6 +141,7 @@ async function updateWorkOrderDates() {
 (async () => {
   await initializeAuthSchema();
   await initializeZonesSchema();
+  await initializeWorkOrderStatusSchema();
   await updateWorkOrderDates();
 })();
 
@@ -2657,6 +2678,336 @@ app.get('/api/work-orders/:id/history', async (req, res) => {
   }
 });
 
+// ============================================================
+// WORK ORDER STATUS AND ASSIGNMENT TRACKING ENDPOINTS
+// ============================================================
+
+/**
+ * @route POST /api/work-orders/:id/assignments
+ * @description Record a new assignment/physical visit for a work order
+ * This tracks only actual on-site visits, NOT carry-over days
+ */
+app.post('/api/work-orders/:id/assignments', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const workOrderId = req.params.id;
+    const {
+      assignment_date,
+      technician_id,
+      status_after_visit,
+      time_slot,
+      suspension_reason,
+      notes,
+      created_by_user_id
+    } = req.body;
+
+    console.log(`📅 Recording assignment for work order ${workOrderId} on ${assignment_date}`);
+
+    // Validate work order exists
+    const woExists = await client.query(
+      'SELECT id, status FROM work_orders WHERE id = $1',
+      [workOrderId]
+    );
+
+    if (woExists.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Work order not found' });
+    }
+
+    // Insert assignment record
+    const assignmentResult = await client.query(`
+      INSERT INTO work_order_assignments (
+        work_order_id,
+        assignment_date,
+        technician_id,
+        status_after_visit,
+        time_slot,
+        suspension_reason,
+        notes,
+        created_by_user_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `, [
+      workOrderId,
+      assignment_date,
+      technician_id,
+      status_after_visit,
+      time_slot,
+      suspension_reason,
+      notes,
+      created_by_user_id
+    ]);
+
+    // Update work order status based on visit outcome
+    const updateFields = ['status = $1', 'updated_at = NOW()'];
+    const updateValues = [status_after_visit];
+    let paramCount = 2;
+
+    if (status_after_visit === 'Suspended') {
+      updateFields.push(`suspended_date = $${paramCount}`);
+      updateValues.push(assignment_date);
+      paramCount++;
+
+      if (suspension_reason) {
+        updateFields.push(`suspension_reason = $${paramCount}`);
+        updateValues.push(suspension_reason);
+        paramCount++;
+      }
+    } else if (status_after_visit === 'Complete') {
+      updateFields.push(`completed_date = $${paramCount}`);
+      updateValues.push(assignment_date);
+      paramCount++;
+    }
+
+    updateValues.push(workOrderId);
+    const updateQuery = `
+      UPDATE work_orders
+      SET ${updateFields.join(', ')}
+      WHERE id = $${paramCount}
+      RETURNING *
+    `;
+
+    const updatedWO = await client.query(updateQuery, updateValues);
+
+    await client.query('COMMIT');
+
+    console.log(`✅ Assignment recorded successfully`);
+    res.json({
+      success: true,
+      message: 'Assignment recorded successfully',
+      assignment: assignmentResult.rows[0],
+      workOrder: updatedWO.rows[0]
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Record assignment error:', error);
+    res.status(500).json({
+      error: 'Failed to record assignment',
+      details: error.message
+    });
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * @route GET /api/work-orders/:id/assignments
+ * @description Get assignment history for a work order (all physical visits)
+ */
+app.get('/api/work-orders/:id/assignments', async (req, res) => {
+  try {
+    const workOrderId = req.params.id;
+    console.log(`📋 Getting assignment history for work order ${workOrderId}`);
+
+    const result = await pool.query(`
+      SELECT * FROM get_work_order_assignment_history($1)
+    `, [workOrderId]);
+
+    console.log(`✅ Found ${result.rows.length} assignments`);
+    res.json({
+      work_order_id: parseInt(workOrderId),
+      assignments: result.rows
+    });
+
+  } catch (error) {
+    console.error('❌ Get assignments error:', error);
+    res.status(500).json({
+      error: 'Failed to get assignments',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * @route PUT /api/work-orders/:id/queue
+ * @description Update work order queue (separate from DBoard columns)
+ * Queues: 'Needs Parts', 'Needs Return Trip', etc.
+ */
+app.put('/api/work-orders/:id/queue', async (req, res) => {
+  try {
+    const workOrderId = req.params.id;
+    const { queue } = req.body;
+
+    console.log(`🔄 Updating work order ${workOrderId} queue to: ${queue || 'none'}`);
+
+    const result = await pool.query(`
+      UPDATE work_orders
+      SET queue = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING *
+    `, [queue, workOrderId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Work order not found' });
+    }
+
+    console.log(`✅ Queue updated successfully`);
+    res.json({
+      success: true,
+      message: 'Queue updated successfully',
+      workOrder: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('❌ Update queue error:', error);
+    res.status(500).json({
+      error: 'Failed to update queue',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * @route PUT /api/work-orders/:id/remarks
+ * @description Update customer remarks (no character limit like Vision)
+ */
+app.put('/api/work-orders/:id/remarks', async (req, res) => {
+  try {
+    const workOrderId = req.params.id;
+    const { customer_remarks } = req.body;
+
+    console.log(`💬 Updating work order ${workOrderId} customer remarks`);
+
+    const result = await pool.query(`
+      UPDATE work_orders
+      SET customer_remarks = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING *
+    `, [customer_remarks, workOrderId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Work order not found' });
+    }
+
+    console.log(`✅ Customer remarks updated successfully`);
+    res.json({
+      success: true,
+      message: 'Customer remarks updated successfully',
+      workOrder: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('❌ Update remarks error:', error);
+    res.status(500).json({
+      error: 'Failed to update remarks',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * @route GET /api/work-orders/by-queue
+ * @description Get work orders filtered by queue status
+ * Query params: queue (optional), status (optional)
+ */
+app.get('/api/work-orders/by-queue', async (req, res) => {
+  try {
+    const { queue, status } = req.query;
+
+    console.log(`🔍 Getting work orders - Queue: ${queue || 'all'}, Status: ${status || 'all'}`);
+
+    let query = `
+      SELECT wo.*, c.name as customer_name, c.service_city,
+             t.first_name as tech_first_name, t.last_name as tech_last_name,
+             e.equipment_type, e.equipment_number
+      FROM work_orders wo
+      LEFT JOIN customers c ON wo.customer_id = c.id
+      LEFT JOIN technicians t ON wo.assigned_tech_id = t.id
+      LEFT JOIN equipment e ON wo.equipment_id = e.id
+      WHERE 1=1
+    `;
+
+    const params = [];
+    let paramCount = 1;
+
+    if (queue) {
+      query += ` AND wo.queue = $${paramCount}`;
+      params.push(queue);
+      paramCount++;
+    }
+
+    if (status) {
+      query += ` AND wo.status = $${paramCount}`;
+      params.push(status);
+      paramCount++;
+    }
+
+    query += ` ORDER BY wo.scheduled_date DESC, wo.created_at DESC`;
+
+    const result = await pool.query(query, params);
+
+    console.log(`✅ Found ${result.rows.length} work orders`);
+    res.json({
+      count: result.rows.length,
+      workOrders: result.rows
+    });
+
+  } catch (error) {
+    console.error('❌ Get work orders by queue error:', error);
+    res.status(500).json({
+      error: 'Failed to get work orders',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * @route GET /api/work-orders/status-summary
+ * @description Get summary counts of work orders by status and queue
+ */
+app.get('/api/work-orders/status-summary', async (req, res) => {
+  try {
+    console.log(`📊 Getting work order status summary`);
+
+    const result = await pool.query(`
+      SELECT
+        status,
+        queue,
+        COUNT(*) as count
+      FROM work_orders
+      WHERE status != 'Complete'
+      GROUP BY status, queue
+      ORDER BY status, queue
+    `);
+
+    // Transform into more useful structure
+    const summary = {
+      by_status: {},
+      by_queue: {},
+      total: 0
+    };
+
+    result.rows.forEach(row => {
+      // By status
+      if (!summary.by_status[row.status]) {
+        summary.by_status[row.status] = 0;
+      }
+      summary.by_status[row.status] += parseInt(row.count);
+
+      // By queue
+      const queueKey = row.queue || 'none';
+      if (!summary.by_queue[queueKey]) {
+        summary.by_queue[queueKey] = 0;
+      }
+      summary.by_queue[queueKey] += parseInt(row.count);
+
+      summary.total += parseInt(row.count);
+    });
+
+    console.log(`✅ Status summary generated`);
+    res.json(summary);
+
+  } catch (error) {
+    console.error('❌ Get status summary error:', error);
+    res.status(500).json({
+      error: 'Failed to get status summary',
+      details: error.message
+    });
+  }
+});
 
 
 // ============================================================
