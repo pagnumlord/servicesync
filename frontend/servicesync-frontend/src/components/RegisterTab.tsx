@@ -226,15 +226,15 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
   }
 
   return (
-    <div style={{ padding: '1.5rem' }}>
+    <div style={{ padding: '1.25rem 1.5rem' }}>
       {/* Header */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: '1.5rem'
+        marginBottom: '1.25rem'
       }}>
-        <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '600', color: '#1F2937' }}>
+        <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: '600', color: '#1F2937' }}>
           Register - Labor & Parts
         </h3>
         {!isReadOnly && (
@@ -245,13 +245,14 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
               backgroundColor: '#3B82F6',
               color: 'white',
               border: 'none',
-              borderRadius: '0.5rem',
+              borderRadius: '0.375rem',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',
               fontSize: '0.875rem',
-              fontWeight: '500'
+              fontWeight: '500',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
             }}
           >
             <Plus size={16} />
@@ -263,14 +264,14 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
       {/* Quick Add - Inline Entry */}
       {showAddForm && (
         <div style={{
-          backgroundColor: 'white',
-          border: '2px solid #3B82F6',
+          backgroundColor: '#F9FAFB',
+          border: '1px solid #E5E7EB',
           borderRadius: '0.5rem',
-          padding: '1rem',
-          marginBottom: '1.5rem',
-          boxShadow: '0 2px 8px rgba(59, 130, 246, 0.1)'
+          padding: '1.25rem',
+          marginBottom: '1.25rem',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
         }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '110px 140px 100px 90px 90px auto', gap: '0.75rem', alignItems: 'end' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '110px 150px 100px 85px 85px auto', gap: '0.75rem', alignItems: 'end' }}>
             {/* Type Dropdown */}
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem', color: '#6B7280' }}>
@@ -414,60 +415,42 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
             </div>
 
             {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button
-                  onClick={handleAddItem}
-                  disabled={!newItem.product || !newItem.unit_price}
-                  style={{
-                    padding: '0.5rem 0.75rem',
-                    backgroundColor: newItem.product && newItem.unit_price ? '#10B981' : '#D1D5DB',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '0.375rem',
-                    cursor: newItem.product && newItem.unit_price ? 'pointer' : 'not-allowed',
-                    fontSize: '0.75rem',
-                    fontWeight: '500',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                    whiteSpace: 'nowrap'
-                  }}
-                  title="Add this line item"
-                >
-                  <Plus size={14} />
-                  Add
-                </button>
-                <button
-                  onClick={() => setShowAddForm(false)}
-                  style={{
-                    padding: '0.5rem',
-                    backgroundColor: 'white',
-                    color: '#6B7280',
-                    border: '1px solid #D1D5DB',
-                    borderRadius: '0.375rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}
-                  title="Cancel"
-                >
-                  <X size={16} />
-                </button>
-              </div>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
+              <button
+                onClick={handleAddItem}
+                disabled={!newItem.product || !newItem.unit_price}
+                style={{
+                  padding: '0.5rem 0.875rem',
+                  backgroundColor: newItem.product && newItem.unit_price ? '#10B981' : '#D1D5DB',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '0.375rem',
+                  cursor: newItem.product && newItem.unit_price ? 'pointer' : 'not-allowed',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.375rem',
+                  whiteSpace: 'nowrap'
+                }}
+                title="Add this line item"
+              >
+                <Plus size={16} />
+                Add
+              </button>
               <button
                 onClick={() => {
                   setFormEditItem(newItem);
                   setShowFormPopup(true);
                 }}
                 style={{
-                  padding: '0.5rem 0.75rem',
+                  padding: '0.5rem 0.875rem',
                   backgroundColor: '#3B82F6',
                   color: 'white',
                   border: 'none',
                   borderRadius: '0.375rem',
                   cursor: 'pointer',
-                  fontSize: '0.75rem',
+                  fontSize: '0.875rem',
                   fontWeight: '500',
                   whiteSpace: 'nowrap'
                 }}
@@ -475,17 +458,33 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
               >
                 Form
               </button>
+              <button
+                onClick={() => setShowAddForm(false)}
+                style={{
+                  padding: '0.5rem',
+                  backgroundColor: 'white',
+                  color: '#6B7280',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+                title="Cancel"
+              >
+                <X size={18} />
+              </button>
             </div>
           </div>
 
           {/* Flags Row */}
-          <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid #E5E7EB', display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+          <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #E5E7EB', display: 'flex', gap: '2rem', alignItems: 'center' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
               <input
                 type="checkbox"
                 checked={newItem.is_billable !== false}
                 onChange={(e) => setNewItem({ ...newItem, is_billable: e.target.checked })}
-                style={{ cursor: 'pointer' }}
+                style={{ cursor: 'pointer', width: '16px', height: '16px' }}
               />
               <span style={{ color: '#374151', fontWeight: '500' }}>Billable</span>
             </label>
@@ -494,7 +493,7 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
                 type="checkbox"
                 checked={newItem.is_taxable !== false}
                 onChange={(e) => setNewItem({ ...newItem, is_taxable: e.target.checked })}
-                style={{ cursor: 'pointer' }}
+                style={{ cursor: 'pointer', width: '16px', height: '16px' }}
               />
               <span style={{ color: '#374151', fontWeight: '500' }}>Taxable</span>
             </label>
@@ -503,14 +502,14 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
                 type="checkbox"
                 checked={newItem.is_warranty === true}
                 onChange={(e) => setNewItem({ ...newItem, is_warranty: e.target.checked })}
-                style={{ cursor: 'pointer' }}
+                style={{ cursor: 'pointer', width: '16px', height: '16px' }}
               />
               <span style={{ color: '#374151', fontWeight: '500' }}>Warranty</span>
             </label>
 
             {/* Show total if quantity and price set */}
             {newItem.quantity && newItem.unit_price && (
-              <div style={{ marginLeft: 'auto', fontSize: '0.875rem', color: '#111827', fontWeight: '600' }}>
+              <div style={{ marginLeft: 'auto', fontSize: '0.9375rem', color: '#111827', fontWeight: '600', backgroundColor: '#F3F4F6', padding: '0.375rem 0.75rem', borderRadius: '0.375rem' }}>
                 Total: ${((newItem.quantity || 0) * (newItem.unit_price || 0)).toFixed(2)}
               </div>
             )}
@@ -522,16 +521,16 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
       {lineItems.length === 0 ? (
         <div style={{
           textAlign: 'center',
-          padding: '3rem',
+          padding: '4rem 2rem',
           backgroundColor: '#F9FAFB',
-          borderRadius: '0.75rem',
-          border: '2px dashed #D1D5DB'
+          borderRadius: '0.5rem',
+          border: '1px dashed #D1D5DB'
         }}>
-          <AlertCircle size={48} color="#9CA3AF" style={{ margin: '0 auto 1rem' }} />
-          <p style={{ color: '#6B7280', fontSize: '1rem', margin: 0 }}>
+          <AlertCircle size={48} color="#D1D5DB" style={{ margin: '0 auto 1rem' }} />
+          <p style={{ color: '#6B7280', fontSize: '0.9375rem', margin: 0, fontWeight: '500' }}>
             No line items added yet
           </p>
-          <p style={{ color: '#9CA3AF', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+          <p style={{ color: '#9CA3AF', fontSize: '0.875rem', marginTop: '0.375rem' }}>
             Click "Add Line Item" to start building the register
           </p>
         </div>
