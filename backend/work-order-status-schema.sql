@@ -75,6 +75,50 @@ CREATE TABLE IF NOT EXISTS work_order_assignments (
   created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL
 );
 
+-- Add check-in/check-out columns for physical visit tracking
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'work_order_assignments' AND column_name = 'checked_in_at'
+  ) THEN
+    ALTER TABLE work_order_assignments
+    ADD COLUMN checked_in_at TIMESTAMP;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'work_order_assignments' AND column_name = 'checked_out_at'
+  ) THEN
+    ALTER TABLE work_order_assignments
+    ADD COLUMN checked_out_at TIMESTAMP;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'work_order_assignments' AND column_name = 'duration_minutes'
+  ) THEN
+    ALTER TABLE work_order_assignments
+    ADD COLUMN duration_minutes INTEGER;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'work_order_assignments' AND column_name = 'final_status'
+  ) THEN
+    ALTER TABLE work_order_assignments
+    ADD COLUMN final_status VARCHAR(50);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'work_order_assignments' AND column_name = 'status_notes'
+  ) THEN
+    ALTER TABLE work_order_assignments
+    ADD COLUMN status_notes TEXT;
+  END IF;
+END $$;
+
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_work_orders_status ON work_orders(status);
 CREATE INDEX IF NOT EXISTS idx_work_orders_queue ON work_orders(queue);
@@ -131,30 +175,38 @@ ALTER TABLE work_order_assignments
 -- Create helper function to get assignment history for a work order
 CREATE OR REPLACE FUNCTION get_work_order_assignment_history(wo_id INTEGER)
 RETURNS TABLE (
-  assignment_id INTEGER,
-  assignment_date DATE,
-  technician_name VARCHAR(200),
-  status_after_visit VARCHAR(50),
-  time_slot VARCHAR(50),
-  suspension_reason VARCHAR(50),
-  notes TEXT,
-  created_at TIMESTAMP
+  id INTEGER,
+  work_order_id INTEGER,
+  technician_id INTEGER,
+  tech_first_name VARCHAR(100),
+  tech_last_name VARCHAR(100),
+  tech_crew VARCHAR(50),
+  tech_van_number VARCHAR(50),
+  checked_in_at TIMESTAMP,
+  checked_out_at TIMESTAMP,
+  final_status VARCHAR(50),
+  status_notes TEXT,
+  duration_minutes INTEGER
 ) AS $$
 BEGIN
   RETURN QUERY
   SELECT
     woa.id,
-    woa.assignment_date,
-    CONCAT(t.first_name, ' ', t.last_name),
-    woa.status_after_visit,
-    woa.time_slot,
-    woa.suspension_reason,
-    woa.notes,
-    woa.created_at
+    woa.work_order_id,
+    woa.technician_id,
+    t.first_name,
+    t.last_name,
+    t.crew,
+    t.van_number,
+    woa.checked_in_at,
+    woa.checked_out_at,
+    COALESCE(woa.final_status, woa.status_after_visit) as final_status,
+    COALESCE(woa.status_notes, woa.notes) as status_notes,
+    woa.duration_minutes
   FROM work_order_assignments woa
   LEFT JOIN technicians t ON woa.technician_id = t.id
   WHERE woa.work_order_id = wo_id
-  ORDER BY woa.assignment_date DESC, woa.created_at DESC;
+  ORDER BY woa.checked_in_at DESC NULLS LAST, woa.created_at DESC;
 END;
 $$ LANGUAGE plpgsql;
 
