@@ -20,11 +20,15 @@ import {
   Archive,
   Grid,
   Receipt,
-  ShoppingCart
+  ShoppingCart,
+  Paperclip,
+  Map
 } from 'lucide-react';
 import { WorkOrder } from '../types';
 import RegisterTab from './RegisterTab';
 import PurchasingTab from './PurchasingTab';
+import AttachmentsTab from './AttachmentsTab';
+import AssignmentsTab from './AssignmentsTab';
 
 interface WorkOrderDetailsProps {
   workOrder: WorkOrder;
@@ -41,7 +45,7 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedWorkOrder, setEditedWorkOrder] = useState<WorkOrder>(workOrder);
-  const [activeTab, setActiveTab] = useState<'customer' | 'general' | 'register' | 'purchasing'>('general');
+  const [activeTab, setActiveTab] = useState<'customer' | 'general' | 'register' | 'purchasing' | 'attachments' | 'assignments'>('general');
 
   useEffect(() => {
     setEditedWorkOrder(workOrder);
@@ -256,13 +260,16 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
         <div style={{
           borderBottom: '1px solid #E5E7EB',
           display: 'flex',
-          paddingLeft: '2rem'
+          paddingLeft: '2rem',
+          overflowX: 'auto'
         }}>
           {[
             { id: 'customer', label: 'Customer', icon: User },
             { id: 'general', label: 'General', icon: FileText },
             { id: 'register', label: 'Register', icon: CheckSquare },
-            { id: 'purchasing', label: 'Purchasing', icon: Package }
+            { id: 'purchasing', label: 'Purchasing', icon: Package },
+            { id: 'attachments', label: 'Attachments', icon: Paperclip },
+            { id: 'assignments', label: 'Assignments', icon: Map }
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -468,6 +475,14 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
 
           {activeTab === 'purchasing' && (
             <PurchasingTab workOrderId={workOrder.id} isReadOnly={false} />
+          )}
+
+          {activeTab === 'attachments' && (
+            <AttachmentsTab workOrderId={workOrder.id} isReadOnly={false} />
+          )}
+
+          {activeTab === 'assignments' && (
+            <AssignmentsTab workOrderId={workOrder.id} />
           )}
         </div>
       </div>

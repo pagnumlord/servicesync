@@ -3611,41 +3611,148 @@ const upload = multer({
     fileSize: 10 * 1024 * 1024 // 10MB file size limit
   },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
+    // Allow images, PDFs, Word docs, Excel files
+    const allowedMimeTypes = [
+      'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+      'application/pdf',
+      'application/msword', // .doc
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+      'application/vnd.ms-excel', // .xls
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' // .xlsx
+    ];
+
+    if (allowedMimeTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only images and PDFs are allowed'));
+      cb(new Error('Only images, PDFs, Word docs, and Excel files are allowed'));
     }
   }
 });
 
 /**
- * @route POST /api/work-orders/:id/attachments
- * @description Uploads a file as an attachment to a work order.
+ * @route GET /api/work-orders/:id/attachments
+ * @description Get all attachments for a work order
  */
-app.post('/api/work-orders/:id/attachments', upload.single('file'), async (req, res) => {
+app.get('/api/work-orders/:id/attachments', async (req, res) => {
   try {
     const workOrderId = req.params.id;
-    const file = req.file;
-
-    if (!file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    console.log(`📎 Adding attachment to work order ${workOrderId}: ${file.originalname}`);
+    console.log(`📎 Getting attachments for work order ${workOrderId}`);
 
     const result = await pool.query(`
-      INSERT INTO work_order_attachments (
-        work_order_id, filename, original_name, file_path, file_size, mime_type, uploaded_by_user_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING *
-    `, [workOrderId, file.filename, file.originalname, file.path, file.size, file.mimetype, 1]);
+      SELECT
+        id,
+        work_order_id,
+        file_name,
+        file_type as file_type,
+        file_size,
+        file_url,
+        thumbnail_url,
+        COALESCE(uploaded_by::text, 'System') as uploaded_by,
+        uploaded_at,
+        description
+      FROM work_order_attachments
+      WHERE work_order_id = $1 AND deleted_at IS NULL
+      ORDER BY uploaded_at DESC
+    `, [workOrderId]);
 
-    console.log('✅ Attachment uploaded successfully');
-    res.status(201).json(result.rows[0]);
+    console.log(`✅ Found ${result.rows.length} attachments`);
+    res.json({
+      work_order_id: parseInt(workOrderId),
+      attachments: result.rows
+    });
+  } catch (error) {
+    console.error('❌ Get attachments error:', error);
+    res.status(500).json({ error: 'Failed to get attachments' });
+  }
+});
+
+/**
+ * @route POST /api/work-orders/:id/attachments
+ * @description Upload one or more files as attachments to a work order
+ */
+app.post('/api/work-orders/:id/attachments', upload.array('files', 10), async (req, res) => {
+  try {
+    const workOrderId = req.params.id;
+    const files = req.files;
+
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+
+    console.log(`📎 Adding ${files.length} attachment(s) to work order ${workOrderId}`);
+
+    const uploadedFiles = [];
+
+    for (const file of files) {
+      // Build file URL (assuming uploads folder is served statically)
+      const fileUrl = `/uploads/${file.filename}`;
+      const thumbnailUrl = file.mimetype.startsWith('image/') ? fileUrl : null;
+
+      const result = await pool.query(`
+        INSERT INTO work_order_attachments (
+          work_order_id,
+          file_name,
+          file_type,
+          file_size,
+          file_url,
+          thumbnail_url,
+          uploaded_by,
+          uploaded_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+        RETURNING *
+      `, [
+        workOrderId,
+        file.originalname,
+        file.mimetype,
+        file.size,
+        fileUrl,
+        thumbnailUrl,
+        1 // Default user ID - will need to be replaced with actual auth later
+      ]);
+
+      uploadedFiles.push(result.rows[0]);
+    }
+
+    console.log(`✅ ${uploadedFiles.length} attachment(s) uploaded successfully`);
+    res.status(201).json({
+      message: `${uploadedFiles.length} file(s) uploaded successfully`,
+      uploaded: uploadedFiles
+    });
   } catch (error) {
     console.error('❌ Upload attachment error:', error);
-    res.status(500).json({ error: 'Failed to upload attachment' });
+    res.status(500).json({ error: 'Failed to upload attachments', details: error.message });
+  }
+});
+
+/**
+ * @route DELETE /api/work-orders/:id/attachments/:attachmentId
+ * @description Soft delete an attachment (sets deleted_at)
+ */
+app.delete('/api/work-orders/:id/attachments/:attachmentId', async (req, res) => {
+  try {
+    const { id: workOrderId, attachmentId } = req.params;
+    console.log(`🗑️ Deleting attachment ${attachmentId} from work order ${workOrderId}`);
+
+    // Soft delete - set deleted_at timestamp
+    const result = await pool.query(`
+      UPDATE work_order_attachments
+      SET deleted_at = NOW(), deleted_by = $1
+      WHERE id = $2 AND work_order_id = $3 AND deleted_at IS NULL
+      RETURNING *
+    `, [1, attachmentId, workOrderId]); // 1 is default user ID
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Attachment not found' });
+    }
+
+    console.log(`✅ Attachment ${attachmentId} deleted`);
+    res.json({
+      message: 'Attachment deleted successfully',
+      deleted: result.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ Delete attachment error:', error);
+    res.status(500).json({ error: 'Failed to delete attachment' });
   }
 });
 
