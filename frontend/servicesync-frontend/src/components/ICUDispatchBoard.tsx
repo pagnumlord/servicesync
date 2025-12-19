@@ -974,7 +974,7 @@ function ICUDispatchBoard({
                           <WorkOrderCard
                             workOrder={workOrder}
                             showEquipment={infoDisplayMode === 'equipment'}
-                            hideTechName={false}
+                            hideTechName={true}
                             onQuickView={setQuickPreviewWorkOrder}
                             onOpenDetails={handleWorkOrderSelect}
                             onContextMenu={(e) => handleContextMenu(e, workOrder)}
@@ -1054,7 +1054,7 @@ function ICUDispatchBoard({
                           <WorkOrderCard
                             workOrder={workOrder}
                             showEquipment={infoDisplayMode === 'equipment'}
-                            hideTechName={false}
+                            hideTechName={true}
                             onQuickView={setQuickPreviewWorkOrder}
                             onOpenDetails={handleWorkOrderSelect}
                             onContextMenu={(e) => handleContextMenu(e, workOrder)}
