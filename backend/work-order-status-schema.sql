@@ -193,7 +193,7 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE VIEW work_order_status_view AS
 SELECT
   wo.id,
-  wo.work_order_number,
+  wo.wo_number,
   wo.customer_id,
   wo.status,
   wo.queue,
