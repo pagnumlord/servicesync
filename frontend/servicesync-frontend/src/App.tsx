@@ -22,6 +22,7 @@ import NewWorkOrderModal from './components/NewWorkOrderModal';
 import CustomerManagement from './components/CustomerManagement';
 import MapPage from './components/MapPage';
 import WorkOrderDetails from './components/WorkOrderDetails';
+import QueueBoard from './components/QueueBoard';
 import Login from './components/Login';
 import Register from './components/Register';
 import { useAuth } from './context/AuthContext';
@@ -71,6 +72,7 @@ const ServiceSync = () => {
   const navigationItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home, color: '#3b82f6' },
     { id: 'dispatch', label: 'Dispatch', icon: Menu, color: '#059669' },
+    { id: 'queues', label: 'Queues', icon: Grid3X3, color: '#f59e0b' },
     { id: 'map', label: 'Map', icon: MapPin, color: '#dc2626' },
     { id: 'tasks', label: 'Tasks', icon: CheckSquare, color: '#7c3aed' },
     { id: 'customers', label: 'Customers', icon: Users, color: '#ea580c' },
@@ -741,14 +743,18 @@ const handleNewWorkOrder = async (workOrderData: any) => {
         )}
 
         {currentView === 'dispatch' && (
-          <ICUDispatchBoard 
+          <ICUDispatchBoard
             onSocketStatusChange={handleSocketStatusChange}
             onOpenWorkOrder={openWorkOrderDetails}
           />
         )}
 
+        {currentView === 'queues' && (
+          <QueueBoard />
+        )}
+
         {currentView === 'customers' && (
-          <CustomerManagement 
+          <CustomerManagement
             onOpenWorkOrder={openWorkOrderDetails}
           />
         )}
