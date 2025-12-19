@@ -416,18 +416,42 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
                   }}>
                     Problem Description:
                   </h5>
-                  <div style={{
-                    backgroundColor: '#F9FAFB',
-                    padding: '1rem',
-                    borderRadius: '0.5rem',
-                    border: '1px solid #E5E7EB',
-                    minHeight: '120px',
-                    fontSize: '0.875rem',
-                    color: '#374151',
-                    lineHeight: '1.5'
-                  }}>
-                    {workOrder.problem_description || 'No problem description provided.'}
-                  </div>
+                  {isEditing ? (
+                    <textarea
+                      value={editedWorkOrder.problem_description || ''}
+                      onChange={(e) => setEditedWorkOrder({
+                        ...editedWorkOrder,
+                        problem_description: e.target.value
+                      })}
+                      style={{
+                        width: '100%',
+                        backgroundColor: 'white',
+                        padding: '1rem',
+                        borderRadius: '0.5rem',
+                        border: '2px solid #3B82F6',
+                        minHeight: '120px',
+                        fontSize: '0.875rem',
+                        color: '#374151',
+                        lineHeight: '1.5',
+                        fontFamily: 'inherit',
+                        resize: 'vertical'
+                      }}
+                      placeholder="Enter problem description..."
+                    />
+                  ) : (
+                    <div style={{
+                      backgroundColor: '#F9FAFB',
+                      padding: '1rem',
+                      borderRadius: '0.5rem',
+                      border: '1px solid #E5E7EB',
+                      minHeight: '120px',
+                      fontSize: '0.875rem',
+                      color: '#374151',
+                      lineHeight: '1.5'
+                    }}>
+                      {workOrder.problem_description || 'No problem description provided.'}
+                    </div>
+                  )}
                 </div>
               </InfoSection>
 

@@ -213,142 +213,157 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
         )}
       </div>
 
-      {/* Add Item Form */}
+      {/* Quick Add - Inline Entry */}
       {showAddForm && (
         <div style={{
-          backgroundColor: '#F9FAFB',
+          backgroundColor: 'white',
           border: '2px solid #3B82F6',
-          borderRadius: '0.75rem',
-          padding: '1.5rem',
-          marginBottom: '1.5rem'
+          borderRadius: '0.5rem',
+          padding: '1rem',
+          marginBottom: '1.5rem',
+          boxShadow: '0 2px 8px rgba(59, 130, 246, 0.1)'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: '#1F2937' }}>
-              Add New Line Item
-            </h4>
-            <button
-              onClick={() => setShowAddForm(false)}
-              style={{
-                padding: '0.25rem',
-                backgroundColor: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: '#6B7280'
-              }}
-            >
-              <X size={20} />
-            </button>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
-            {/* Item Type */}
+          <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 100px 100px 100px auto', gap: '0.75rem', alignItems: 'end' }}>
+            {/* Type Dropdown */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', color: '#374151' }}>
-                Type *
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem', color: '#6B7280' }}>
+                Type
               </label>
               <select
                 value={newItem.item_type}
-                onChange={(e) => setNewItem({ ...newItem, item_type: e.target.value as any })}
+                onChange={(e) => {
+                  const type = e.target.value as any;
+                  setNewItem({
+                    ...newItem,
+                    item_type: type,
+                    // Auto-set common defaults based on type
+                    description: type === 'labor' ? '' : newItem.description,
+                    unit_of_measure: type === 'labor' ? 'HR' : 'EA'
+                  });
+                }}
                 style={{
                   width: '100%',
                   padding: '0.5rem',
                   border: '1px solid #D1D5DB',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.875rem'
+                  borderRadius: '0.375rem',
+                  fontSize: '0.875rem',
+                  backgroundColor: 'white'
                 }}
               >
                 <option value="labor">Labor</option>
                 <option value="part">Part</option>
                 <option value="material">Material</option>
                 <option value="equipment">Equipment</option>
-                <option value="misc">Miscellaneous</option>
+                <option value="misc">Misc</option>
               </select>
             </div>
 
-            {/* Description */}
-            <div style={{ gridColumn: 'span 2' }}>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', color: '#374151' }}>
+            {/* Description - With Common Presets */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem', color: '#6B7280' }}>
                 Description *
               </label>
-              <input
-                type="text"
-                value={newItem.description || ''}
-                onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
-                placeholder="Enter description"
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  border: '1px solid #D1D5DB',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.875rem'
-                }}
-              />
-            </div>
+              {newItem.item_type === 'labor' ? (
+                <select
+                  value={newItem.description || ''}
+                  onChange={(e) => {
+                    const desc = e.target.value;
+                    // Auto-populate labor details based on common descriptions
+                    let hours = 1;
+                    let rate = 0;
+                    let price = 0;
 
-            {/* Part Number */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', color: '#374151' }}>
-                Part Number
-              </label>
-              <input
-                type="text"
-                value={newItem.part_number || ''}
-                onChange={(e) => setNewItem({ ...newItem, part_number: e.target.value })}
-                placeholder="Optional"
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  border: '1px solid #D1D5DB',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.875rem'
-                }}
-              />
-            </div>
+                    if (desc.includes('Service Call')) {
+                      hours = 1;
+                      rate = 125;
+                      price = 125;
+                    } else if (desc.includes('Diagnostic')) {
+                      hours = 0.5;
+                      rate = 125;
+                      price = 62.5;
+                    } else if (desc.includes('Repair')) {
+                      hours = 2;
+                      rate = 125;
+                      price = 250;
+                    } else if (desc.includes('Installation')) {
+                      hours = 3;
+                      rate = 125;
+                      price = 375;
+                    } else if (desc.includes('Maintenance')) {
+                      hours = 1.5;
+                      rate = 125;
+                      price = 187.5;
+                    }
 
-            {/* Manufacturer */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', color: '#374151' }}>
-                Manufacturer
-              </label>
-              <input
-                type="text"
-                value={newItem.manufacturer || ''}
-                onChange={(e) => setNewItem({ ...newItem, manufacturer: e.target.value })}
-                placeholder="Optional"
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  border: '1px solid #D1D5DB',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.875rem'
-                }}
-              />
+                    setNewItem({
+                      ...newItem,
+                      description: desc,
+                      labor_hours: hours,
+                      labor_rate: rate,
+                      unit_price: price,
+                      quantity: 1
+                    });
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #D1D5DB',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem',
+                    backgroundColor: 'white'
+                  }}
+                >
+                  <option value="">Select labor type...</option>
+                  <option value="Service Call - Regular">Service Call - Regular</option>
+                  <option value="Service Call - OT">Service Call - OT</option>
+                  <option value="Diagnostic/Troubleshooting">Diagnostic/Troubleshooting</option>
+                  <option value="Repair Labor">Repair Labor</option>
+                  <option value="Installation Labor">Installation Labor</option>
+                  <option value="Preventive Maintenance">Preventive Maintenance</option>
+                  <option value="Custom Labor">Custom Labor (enter details below)</option>
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={newItem.description || ''}
+                  onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
+                  placeholder="Part/material description..."
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #D1D5DB',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem'
+                  }}
+                />
+              )}
             </div>
 
             {/* Quantity */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', color: '#374151' }}>
-                Quantity *
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem', color: '#6B7280' }}>
+                Qty
               </label>
               <input
                 type="number"
-                step="0.01"
+                step="0.25"
                 value={newItem.quantity || 1}
                 onChange={(e) => setNewItem({ ...newItem, quantity: parseFloat(e.target.value) || 0 })}
                 style={{
                   width: '100%',
                   padding: '0.5rem',
                   border: '1px solid #D1D5DB',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.875rem'
+                  borderRadius: '0.375rem',
+                  fontSize: '0.875rem',
+                  textAlign: 'right'
                 }}
               />
             </div>
 
             {/* Unit Cost */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', color: '#374151' }}>
-                Unit Cost ($)
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem', color: '#6B7280' }}>
+                Cost
               </label>
               <input
                 type="number"
@@ -359,16 +374,17 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
                   width: '100%',
                   padding: '0.5rem',
                   border: '1px solid #D1D5DB',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.875rem'
+                  borderRadius: '0.375rem',
+                  fontSize: '0.875rem',
+                  textAlign: 'right'
                 }}
               />
             </div>
 
             {/* Unit Price */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', color: '#374151' }}>
-                Unit Price ($) *
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem', color: '#6B7280' }}>
+                Price *
               </label>
               <input
                 type="number"
@@ -379,122 +395,92 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
                   width: '100%',
                   padding: '0.5rem',
                   border: '1px solid #D1D5DB',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.875rem'
+                  borderRadius: '0.375rem',
+                  fontSize: '0.875rem',
+                  textAlign: 'right'
                 }}
               />
             </div>
 
-            {/* Labor Hours (if labor) */}
-            {newItem.item_type === 'labor' && (
-              <>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', color: '#374151' }}>
-                    Labor Hours
-                  </label>
-                  <input
-                    type="number"
-                    step="0.25"
-                    value={newItem.labor_hours || ''}
-                    onChange={(e) => setNewItem({ ...newItem, labor_hours: parseFloat(e.target.value) || undefined })}
-                    placeholder="Optional"
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #D1D5DB',
-                      borderRadius: '0.5rem',
-                      fontSize: '0.875rem'
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', color: '#374151' }}>
-                    Labor Rate ($/hr)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={newItem.labor_rate || ''}
-                    onChange={(e) => setNewItem({ ...newItem, labor_rate: parseFloat(e.target.value) || undefined })}
-                    placeholder="Optional"
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #D1D5DB',
-                      borderRadius: '0.5rem',
-                      fontSize: '0.875rem'
-                    }}
-                  />
-                </div>
-              </>
-            )}
-
-            {/* Checkboxes */}
-            <div style={{ gridColumn: 'span 2', display: 'flex', gap: '1.5rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={newItem.is_billable}
-                  onChange={(e) => setNewItem({ ...newItem, is_billable: e.target.checked })}
-                />
-                Billable
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={newItem.is_taxable}
-                  onChange={(e) => setNewItem({ ...newItem, is_taxable: e.target.checked })}
-                />
-                Taxable
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={newItem.is_warranty}
-                  onChange={(e) => setNewItem({ ...newItem, is_warranty: e.target.checked })}
-                />
-                Warranty Work
-              </label>
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={handleAddItem}
+                disabled={!newItem.description || !newItem.unit_price}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: newItem.description && newItem.unit_price ? '#10B981' : '#D1D5DB',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '0.375rem',
+                  cursor: newItem.description && newItem.unit_price ? 'pointer' : 'not-allowed',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                  whiteSpace: 'nowrap'
+                }}
+                title="Add this line item"
+              >
+                <Plus size={14} />
+                Add
+              </button>
+              <button
+                onClick={() => setShowAddForm(false)}
+                style={{
+                  padding: '0.5rem',
+                  backgroundColor: 'white',
+                  color: '#6B7280',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+                title="Cancel"
+              >
+                <X size={16} />
+              </button>
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
-            <button
-              onClick={() => setShowAddForm(false)}
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: 'white',
-                color: '#374151',
-                border: '1px solid #D1D5DB',
-                borderRadius: '0.5rem',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: '500'
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleAddItem}
-              disabled={!newItem.description || !newItem.unit_price}
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: newItem.description && newItem.unit_price ? '#3B82F6' : '#D1D5DB',
-                color: 'white',
-                border: 'none',
-                borderRadius: '0.5rem',
-                cursor: newItem.description && newItem.unit_price ? 'pointer' : 'not-allowed',
-                fontSize: '0.875rem',
-                fontWeight: '500',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem'
-              }}
-            >
-              <Save size={16} />
-              Add Item
-            </button>
+          {/* Flags Row */}
+          <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid #E5E7EB', display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={newItem.is_billable}
+                onChange={(e) => setNewItem({ ...newItem, is_billable: e.target.checked })}
+                style={{ cursor: 'pointer' }}
+              />
+              <span style={{ color: '#374151', fontWeight: '500' }}>Billable</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={newItem.is_taxable}
+                onChange={(e) => setNewItem({ ...newItem, is_taxable: e.target.checked })}
+                style={{ cursor: 'pointer' }}
+              />
+              <span style={{ color: '#374151', fontWeight: '500' }}>Taxable</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={newItem.is_warranty}
+                onChange={(e) => setNewItem({ ...newItem, is_warranty: e.target.checked })}
+                style={{ cursor: 'pointer' }}
+              />
+              <span style={{ color: '#374151', fontWeight: '500' }}>Warranty</span>
+            </label>
+
+            {/* Show labor details if applicable */}
+            {newItem.item_type === 'labor' && newItem.labor_hours && (
+              <div style={{ marginLeft: 'auto', fontSize: '0.75rem', color: '#6B7280', backgroundColor: '#EFF6FF', padding: '0.25rem 0.75rem', borderRadius: '0.25rem' }}>
+                {newItem.labor_hours}h @ ${newItem.labor_rate}/hr = ${(newItem.labor_hours * (newItem.labor_rate || 0)).toFixed(2)}
+              </div>
+            )}
           </div>
         </div>
       )}
