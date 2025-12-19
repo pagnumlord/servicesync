@@ -3805,6 +3805,308 @@ app.post('/api/map/gps-webhook', async (req, res) => {
 });
 
 // ================================
+// QUEUE MANAGEMENT API
+// ================================
+
+/**
+ * @route GET /api/queues
+ * @description Get all active work order queues with counts
+ */
+app.get('/api/queues', async (req, res) => {
+  try {
+    console.log('📊 Fetching all queues');
+
+    const result = await pool.query(`
+      SELECT * FROM queue_summary
+      ORDER BY display_order
+    `);
+
+    console.log(`✅ Found ${result.rows.length} queues`);
+    res.json({ queues: result.rows });
+  } catch (error) {
+    console.error('❌ Get queues error:', error);
+    res.status(500).json({ error: 'Failed to fetch queues' });
+  }
+});
+
+/**
+ * @route GET /api/queues/:queueName/work-orders
+ * @description Get all work orders in a specific queue
+ */
+app.get('/api/queues/:queueName/work-orders', async (req, res) => {
+  try {
+    const { queueName } = req.params;
+    console.log(`📋 Fetching work orders for queue: ${queueName}`);
+
+    const result = await pool.query(`
+      SELECT
+        wo.id,
+        wo.work_order_number,
+        wo.customer_id,
+        wo.customer_name,
+        wo.service_location,
+        wo.customer_city,
+        wo.customer_zone,
+        wo.equipment_type,
+        wo.equipment_number,
+        wo.problem_description,
+        wo.status,
+        wo.call_urgency,
+        wo.call_rate,
+        wo.scheduled_date,
+        wo.scheduled_time_slot,
+        wo.technician_id,
+        wo.needs_parts,
+        wo.needs_return_trip,
+        wo.parts_ordered_at,
+        wo.parts_ready_at,
+        wo.created_at,
+        qa.assigned_at AS queue_assigned_at,
+        qa.priority AS queue_priority,
+        qa.assignment_notes,
+        t.first_name AS tech_first_name,
+        t.last_name AS tech_last_name,
+        t.crew AS tech_crew,
+        t.van_number AS tech_van_number
+      FROM work_order_queue_assignments qa
+      JOIN work_orders wo ON qa.work_order_id = wo.id
+      JOIN work_order_queues q ON qa.queue_id = q.id
+      LEFT JOIN technicians t ON wo.technician_id = t.id
+      WHERE q.queue_name = $1
+        AND qa.removed_at IS NULL
+        AND q.is_active = TRUE
+      ORDER BY qa.priority DESC, qa.assigned_at ASC
+    `, [queueName]);
+
+    console.log(`✅ Found ${result.rows.length} work orders in ${queueName}`);
+    res.json({
+      queue_name: queueName,
+      work_orders: result.rows,
+      count: result.rows.length
+    });
+  } catch (error) {
+    console.error('❌ Get queue work orders error:', error);
+    res.status(500).json({ error: 'Failed to fetch queue work orders' });
+  }
+});
+
+/**
+ * @route POST /api/work-orders/:id/move-to-queue
+ * @description Move a work order to a different queue
+ */
+app.post('/api/work-orders/:id/move-to-queue', async (req, res) => {
+  try {
+    const workOrderId = req.params.id;
+    const { queueName, reason, userId } = req.body;
+
+    console.log(`🔄 Moving work order ${workOrderId} to queue: ${queueName}`);
+
+    const result = await pool.query(
+      'SELECT move_work_order_to_queue($1, $2, $3, $4, FALSE) AS success',
+      [workOrderId, queueName, userId || null, reason || null]
+    );
+
+    if (result.rows[0].success) {
+      console.log(`✅ Work order ${workOrderId} moved to ${queueName}`);
+
+      // Broadcast queue update via WebSocket
+      io.emit('queueUpdated', {
+        workOrderId: parseInt(workOrderId),
+        queueName,
+        timestamp: new Date().toISOString()
+      });
+
+      res.json({
+        success: true,
+        message: `Work order moved to ${queueName}`,
+        queue_name: queueName
+      });
+    } else {
+      res.json({
+        success: false,
+        message: 'Work order was already in this queue'
+      });
+    }
+  } catch (error) {
+    console.error('❌ Move to queue error:', error);
+    res.status(500).json({ error: 'Failed to move work order to queue', details: error.message });
+  }
+});
+
+/**
+ * @route POST /api/work-orders/:id/checkout
+ * @description Handle work order checkout with automatic queue routing
+ */
+app.post('/api/work-orders/:id/checkout', async (req, res) => {
+  try {
+    const workOrderId = req.params.id;
+    const { needsParts, needsReturn, userId, statusNotes } = req.body;
+
+    console.log(`✅ Checking out work order ${workOrderId}`);
+    console.log(`   Needs parts: ${needsParts}, Needs return: ${needsReturn}`);
+
+    // Route to appropriate queue based on checkout answers
+    const result = await pool.query(
+      'SELECT route_work_order_on_checkout($1, $2, $3, $4) AS target_queue',
+      [workOrderId, needsParts || false, needsReturn || false, userId || null]
+    );
+
+    const targetQueue = result.rows[0].target_queue;
+
+    // Update status notes if provided
+    if (statusNotes) {
+      await pool.query(
+        'UPDATE work_orders SET status_notes = $1 WHERE id = $2',
+        [statusNotes, workOrderId]
+      );
+    }
+
+    console.log(`✅ Work order ${workOrderId} routed to: ${targetQueue}`);
+
+    // Broadcast checkout event via WebSocket
+    io.emit('workOrderCheckedOut', {
+      workOrderId: parseInt(workOrderId),
+      queueName: targetQueue,
+      needsParts,
+      needsReturn,
+      timestamp: new Date().toISOString()
+    });
+
+    res.json({
+      success: true,
+      message: 'Work order checked out successfully',
+      target_queue: targetQueue,
+      needs_parts: needsParts,
+      needs_return: needsReturn
+    });
+  } catch (error) {
+    console.error('❌ Checkout error:', error);
+    res.status(500).json({ error: 'Failed to checkout work order', details: error.message });
+  }
+});
+
+/**
+ * @route GET /api/work-orders/:id/queue-history
+ * @description Get queue movement history for a work order
+ */
+app.get('/api/work-orders/:id/queue-history', async (req, res) => {
+  try {
+    const workOrderId = req.params.id;
+    console.log(`📜 Fetching queue history for work order ${workOrderId}`);
+
+    const result = await pool.query(`
+      SELECT
+        h.id,
+        h.moved_at,
+        h.move_reason,
+        h.automatic,
+        fq.queue_name AS from_queue,
+        tq.queue_name AS to_queue,
+        u.username AS moved_by_user
+      FROM work_order_queue_history h
+      LEFT JOIN work_order_queues fq ON h.from_queue_id = fq.id
+      LEFT JOIN work_order_queues tq ON h.to_queue_id = tq.id
+      LEFT JOIN users u ON h.moved_by = u.id
+      WHERE h.work_order_id = $1
+      ORDER BY h.moved_at DESC
+    `, [workOrderId]);
+
+    console.log(`✅ Found ${result.rows.length} queue movements`);
+    res.json({
+      work_order_id: parseInt(workOrderId),
+      history: result.rows
+    });
+  } catch (error) {
+    console.error('❌ Get queue history error:', error);
+    res.status(500).json({ error: 'Failed to fetch queue history' });
+  }
+});
+
+/**
+ * @route PUT /api/work-orders/:id/parts-ordered
+ * @description Mark parts as ordered and move to Parts Ordered queue
+ */
+app.put('/api/work-orders/:id/parts-ordered', async (req, res) => {
+  try {
+    const workOrderId = req.params.id;
+    const { userId, notes } = req.body;
+
+    console.log(`📦 Marking parts as ordered for work order ${workOrderId}`);
+
+    // Update parts_ordered_at timestamp
+    await pool.query(
+      'UPDATE work_orders SET parts_ordered_at = NOW() WHERE id = $1',
+      [workOrderId]
+    );
+
+    // Move to Parts Ordered queue
+    await pool.query(
+      'SELECT move_work_order_to_queue($1, $2, $3, $4, FALSE)',
+      [workOrderId, 'Parts Ordered', userId || null, notes || 'Parts ordered']
+    );
+
+    console.log(`✅ Parts marked as ordered for work order ${workOrderId}`);
+
+    // Broadcast update
+    io.emit('partsOrdered', {
+      workOrderId: parseInt(workOrderId),
+      timestamp: new Date().toISOString()
+    });
+
+    res.json({
+      success: true,
+      message: 'Parts marked as ordered',
+      queue_name: 'Parts Ordered'
+    });
+  } catch (error) {
+    console.error('❌ Parts ordered error:', error);
+    res.status(500).json({ error: 'Failed to mark parts as ordered' });
+  }
+});
+
+/**
+ * @route PUT /api/work-orders/:id/parts-ready
+ * @description Mark parts as ready and move to Ready to Schedule queue
+ */
+app.put('/api/work-orders/:id/parts-ready', async (req, res) => {
+  try {
+    const workOrderId = req.params.id;
+    const { userId, notes } = req.body;
+
+    console.log(`✅ Marking parts as ready for work order ${workOrderId}`);
+
+    // Update parts_ready_at timestamp
+    await pool.query(
+      'UPDATE work_orders SET parts_ready_at = NOW() WHERE id = $1',
+      [workOrderId]
+    );
+
+    // Move to Ready to Schedule queue
+    await pool.query(
+      'SELECT move_work_order_to_queue($1, $2, $3, $4, FALSE)',
+      [workOrderId, 'Ready to Schedule', userId || null, notes || 'Parts arrived and ready']
+    );
+
+    console.log(`✅ Parts marked as ready for work order ${workOrderId}`);
+
+    // Broadcast update
+    io.emit('partsReady', {
+      workOrderId: parseInt(workOrderId),
+      timestamp: new Date().toISOString()
+    });
+
+    res.json({
+      success: true,
+      message: 'Parts marked as ready',
+      queue_name: 'Ready to Schedule'
+    });
+  } catch (error) {
+    console.error('❌ Parts ready error:', error);
+    res.status(500).json({ error: 'Failed to mark parts as ready' });
+  }
+});
+
+// ================================
 // WEBSOCKET FOR REAL-TIME UPDATES
 // ================================
 
