@@ -386,15 +386,16 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
         </div>
       )}
 
-      {/* Check-In/Check-Out Buttons - Show on hover */}
+      {/* Check-In/Check-Out Buttons - Small icons in top-left corner on hover */}
       {showCheckInOut && isHovered && (canCheckIn || canCheckOut) && (
         <div
           style={{
-            marginTop: '0.5rem',
-            paddingTop: '0.5rem',
-            borderTop: '1px solid #E5E7EB',
+            position: 'absolute',
+            top: '0.5rem',
+            left: '0.5rem',
             display: 'flex',
-            gap: '0.5rem'
+            gap: '0.25rem',
+            zIndex: 10
           }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -404,31 +405,32 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
                 e.stopPropagation();
                 onCheckIn(workOrder);
               }}
+              title="Check In"
               style={{
-                flex: 1,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '0.25rem',
-                padding: '0.375rem 0.5rem',
-                fontSize: '0.75rem',
-                fontWeight: '600',
+                width: '24px',
+                height: '24px',
+                padding: 0,
                 color: 'white',
                 backgroundColor: '#10B981',
-                border: 'none',
-                borderRadius: '0.375rem',
+                border: '1px solid white',
+                borderRadius: '0.25rem',
                 cursor: 'pointer',
-                transition: 'background-color 0.2s'
+                transition: 'all 0.2s',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = '#059669';
+                e.currentTarget.style.transform = 'scale(1.1)';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = '#10B981';
+                e.currentTarget.style.transform = 'scale(1)';
               }}
             >
               <PlayCircle size={14} />
-              <span>Check In</span>
             </button>
           )}
 
@@ -438,31 +440,32 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
                 e.stopPropagation();
                 onCheckOut(workOrder);
               }}
+              title="Check Out"
               style={{
-                flex: 1,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '0.25rem',
-                padding: '0.375rem 0.5rem',
-                fontSize: '0.75rem',
-                fontWeight: '600',
+                width: '24px',
+                height: '24px',
+                padding: 0,
                 color: 'white',
                 backgroundColor: '#EF4444',
-                border: 'none',
-                borderRadius: '0.375rem',
+                border: '1px solid white',
+                borderRadius: '0.25rem',
                 cursor: 'pointer',
-                transition: 'background-color 0.2s'
+                transition: 'all 0.2s',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = '#DC2626';
+                e.currentTarget.style.transform = 'scale(1.1)';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = '#EF4444';
+                e.currentTarget.style.transform = 'scale(1)';
               }}
             >
               <StopCircle size={14} />
-              <span>Check Out</span>
             </button>
           )}
         </div>

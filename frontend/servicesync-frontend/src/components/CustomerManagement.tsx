@@ -260,7 +260,7 @@ const CustomerDetailsPage: React.FC<CustomerDetailsPageProps> = ({
       const response = await fetch(`${API_BASE}/customers/${customer.id}/work-orders`);
       if (response.ok) {
         const data = await response.json();
-        setWorkOrders(data.work_orders || data || []);
+        setWorkOrders(data.workOrders || []); // Backend returns camelCase 'workOrders'
       } else {
         console.error('Failed to fetch work orders:', response.status);
       }
