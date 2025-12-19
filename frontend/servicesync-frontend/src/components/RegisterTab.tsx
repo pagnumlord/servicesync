@@ -14,10 +14,48 @@ import {
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
+// Product options based on Type (matching Vision)
+const PRODUCT_OPTIONS: Record<string, string[]> = {
+  labor: [
+    'RT Labor',
+    'Helper',
+    'Helper OT',
+    'Overtime',
+    'On-the-job training',
+    'SunHol'
+  ],
+  flat_rate: [
+    'Flat Rate Service',
+    'Diagnostic Fee',
+    'Trip Charge'
+  ],
+  miscellaneous: [
+    'Finance/Bad Ck/Interest',
+    'Job Summary Billing',
+    'Jobs in Process',
+    'Lease',
+    'Misc. Use Fees',
+    'Office Supplies'
+  ],
+  parts: [], // Parts come from inventory lookup
+  equipment: ['Equipment Rental', 'Equipment Sale'],
+  freight: ['Freight Charges'],
+  sub_contractor: ['Sub-Contractor Services']
+};
+
+// Rate modifiers (matching Vision)
+const RATE_MODIFIERS = [
+  'Regular Time',
+  'Overtime',
+  'Double Time',
+  'After Hours'
+];
+
 interface LineItem {
   id?: number;
   line_number: number;
-  item_type: 'labor' | 'part' | 'material' | 'equipment' | 'misc';
+  item_type: 'labor' | 'parts' | 'miscellaneous' | 'flat_rate' | 'sub_contractor' | 'equipment' | 'freight';
+  product?: string; // Cascading field based on item_type
   description: string;
   part_number?: string;
   manufacturer?: string;
@@ -27,12 +65,15 @@ interface LineItem {
   unit_price: number;
   labor_hours?: number;
   labor_rate?: number;
+  modifier?: string; // Rate modifier (Regular Time, OT, etc.)
+  markup_percentage?: number;
   line_total: number;
   cost_total: number;
   profit_margin: number;
   is_billable: boolean;
   is_taxable: boolean;
   is_warranty: boolean;
+  is_inventory: boolean; // Distinguishes Inventory vs Miscellaneous parts
   notes?: string;
 }
 
@@ -46,15 +87,21 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
   const [isLoading, setIsLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showFormPopup, setShowFormPopup] = useState(false);
+  const [formEditItem, setFormEditItem] = useState<Partial<LineItem> | null>(null);
   const [newItem, setNewItem] = useState<Partial<LineItem>>({
     item_type: 'labor',
+    product: '',
+    modifier: 'Regular Time',
     quantity: 1,
     unit_of_measure: 'EA',
     unit_cost: 0,
     unit_price: 0,
+    markup_percentage: 0,
     is_billable: true,
     is_taxable: true,
-    is_warranty: false
+    is_warranty: false,
+    is_inventory: false
   });
 
   useEffect(() => {
@@ -223,7 +270,7 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
           marginBottom: '1.5rem',
           boxShadow: '0 2px 8px rgba(59, 130, 246, 0.1)'
         }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 100px 100px 100px auto', gap: '0.75rem', alignItems: 'end' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '110px 140px 100px 90px 90px auto', gap: '0.75rem', alignItems: 'end' }}>
             {/* Type Dropdown */}
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem', color: '#6B7280' }}>
@@ -236,9 +283,10 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
                   setNewItem({
                     ...newItem,
                     item_type: type,
-                    // Auto-set common defaults based on type
-                    description: type === 'labor' ? '' : newItem.description,
-                    unit_of_measure: type === 'labor' ? 'HR' : 'EA'
+                    product: '', // Reset product when type changes
+                    description: '',
+                    unit_of_measure: type === 'labor' ? 'HR' : 'EA',
+                    is_inventory: type === 'parts'
                   });
                 }}
                 style={{
@@ -251,92 +299,75 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
                 }}
               >
                 <option value="labor">Labor</option>
-                <option value="part">Part</option>
-                <option value="material">Material</option>
+                <option value="parts">Parts</option>
+                <option value="miscellaneous">Miscellaneous</option>
+                <option value="flat_rate">Flat Rate</option>
+                <option value="sub_contractor">Sub-Contractor</option>
                 <option value="equipment">Equipment</option>
-                <option value="misc">Misc</option>
+                <option value="freight">Freight</option>
               </select>
             </div>
 
-            {/* Description - With Common Presets */}
+            {/* Product Dropdown (cascades from Type) */}
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem', color: '#6B7280' }}>
-                Description *
+                Product/Repair
               </label>
-              {newItem.item_type === 'labor' ? (
-                <select
-                  value={newItem.description || ''}
-                  onChange={(e) => {
-                    const desc = e.target.value;
-                    // Auto-populate labor details based on common descriptions
-                    let hours = 1;
-                    let rate = 0;
-                    let price = 0;
+              <select
+                value={newItem.product || ''}
+                onChange={(e) => {
+                  const product = e.target.value;
+                  // Auto-populate based on product selection
+                  let updates: Partial<LineItem> = { product };
 
-                    if (desc.includes('Service Call')) {
-                      hours = 1;
-                      rate = 125;
-                      price = 125;
-                    } else if (desc.includes('Diagnostic')) {
-                      hours = 0.5;
-                      rate = 125;
-                      price = 62.5;
-                    } else if (desc.includes('Repair')) {
-                      hours = 2;
-                      rate = 125;
-                      price = 250;
-                    } else if (desc.includes('Installation')) {
-                      hours = 3;
-                      rate = 125;
-                      price = 375;
-                    } else if (desc.includes('Maintenance')) {
-                      hours = 1.5;
-                      rate = 125;
-                      price = 187.5;
-                    }
+                  // Auto-set pricing for common products
+                  if (product === 'RT Labor') {
+                    updates = { ...updates, labor_rate: 120, unit_price: 120 };
+                  } else if (product === 'Helper') {
+                    updates = { ...updates, labor_rate: 100, unit_price: 100 };
+                  } else if (product === 'Overtime') {
+                    updates = { ...updates, labor_rate: 180, unit_price: 180 };
+                  }
 
-                    setNewItem({
-                      ...newItem,
-                      description: desc,
-                      labor_hours: hours,
-                      labor_rate: rate,
-                      unit_price: price,
-                      quantity: 1
-                    });
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #D1D5DB',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem',
-                    backgroundColor: 'white'
-                  }}
-                >
-                  <option value="">Select labor type...</option>
-                  <option value="Service Call - Regular">Service Call - Regular</option>
-                  <option value="Service Call - OT">Service Call - OT</option>
-                  <option value="Diagnostic/Troubleshooting">Diagnostic/Troubleshooting</option>
-                  <option value="Repair Labor">Repair Labor</option>
-                  <option value="Installation Labor">Installation Labor</option>
-                  <option value="Preventive Maintenance">Preventive Maintenance</option>
-                  <option value="Custom Labor">Custom Labor (enter details below)</option>
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  value={newItem.description || ''}
-                  onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
-                  placeholder="Part/material description..."
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #D1D5DB',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem'
-                  }}
-                />
-              )}
+                  setNewItem({ ...newItem, ...updates });
+                }}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '0.375rem',
+                  fontSize: '0.875rem',
+                  backgroundColor: 'white'
+                }}
+              >
+                <option value="">Select...</option>
+                {PRODUCT_OPTIONS[newItem.item_type || 'labor']?.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Modifier (Rate Type) */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem', color: '#6B7280' }}>
+                Modifier
+              </label>
+              <select
+                value={newItem.modifier || 'Regular Time'}
+                onChange={(e) => setNewItem({ ...newItem, modifier: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '0.375rem',
+                  fontSize: '0.875rem',
+                  backgroundColor: 'white'
+                }}
+              >
+                {RATE_MODIFIERS.map(mod => (
+                  <option key={mod} value={mod}>{mod}</option>
+                ))}
+              </select>
             </div>
 
             {/* Quantity */}
@@ -360,31 +391,10 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
               />
             </div>
 
-            {/* Unit Cost */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem', color: '#6B7280' }}>
-                Cost
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                value={newItem.unit_cost || 0}
-                onChange={(e) => setNewItem({ ...newItem, unit_cost: parseFloat(e.target.value) || 0 })}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  border: '1px solid #D1D5DB',
-                  borderRadius: '0.375rem',
-                  fontSize: '0.875rem',
-                  textAlign: 'right'
-                }}
-              />
-            </div>
-
             {/* Unit Price */}
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem', color: '#6B7280' }}>
-                Price *
+                Rate
               </label>
               <input
                 type="number"
@@ -399,48 +409,71 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
                   fontSize: '0.875rem',
                   textAlign: 'right'
                 }}
+                placeholder="0.00"
               />
             </div>
 
             {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  onClick={handleAddItem}
+                  disabled={!newItem.product || !newItem.unit_price}
+                  style={{
+                    padding: '0.5rem 0.75rem',
+                    backgroundColor: newItem.product && newItem.unit_price ? '#10B981' : '#D1D5DB',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '0.375rem',
+                    cursor: newItem.product && newItem.unit_price ? 'pointer' : 'not-allowed',
+                    fontSize: '0.75rem',
+                    fontWeight: '500',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    whiteSpace: 'nowrap'
+                  }}
+                  title="Add this line item"
+                >
+                  <Plus size={14} />
+                  Add
+                </button>
+                <button
+                  onClick={() => setShowAddForm(false)}
+                  style={{
+                    padding: '0.5rem',
+                    backgroundColor: 'white',
+                    color: '#6B7280',
+                    border: '1px solid #D1D5DB',
+                    borderRadius: '0.375rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  title="Cancel"
+                >
+                  <X size={16} />
+                </button>
+              </div>
               <button
-                onClick={handleAddItem}
-                disabled={!newItem.description || !newItem.unit_price}
+                onClick={() => {
+                  setFormEditItem(newItem);
+                  setShowFormPopup(true);
+                }}
                 style={{
-                  padding: '0.5rem 1rem',
-                  backgroundColor: newItem.description && newItem.unit_price ? '#10B981' : '#D1D5DB',
+                  padding: '0.5rem 0.75rem',
+                  backgroundColor: '#3B82F6',
                   color: 'white',
                   border: 'none',
                   borderRadius: '0.375rem',
-                  cursor: newItem.description && newItem.unit_price ? 'pointer' : 'not-allowed',
-                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                  fontSize: '0.75rem',
                   fontWeight: '500',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
                   whiteSpace: 'nowrap'
                 }}
-                title="Add this line item"
+                title="Open detailed form for markup and advanced settings"
               >
-                <Plus size={14} />
-                Add
-              </button>
-              <button
-                onClick={() => setShowAddForm(false)}
-                style={{
-                  padding: '0.5rem',
-                  backgroundColor: 'white',
-                  color: '#6B7280',
-                  border: '1px solid #D1D5DB',
-                  borderRadius: '0.375rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center'
-                }}
-                title="Cancel"
-              >
-                <X size={16} />
+                Form
               </button>
             </div>
           </div>
@@ -450,7 +483,7 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
               <input
                 type="checkbox"
-                checked={newItem.is_billable}
+                checked={newItem.is_billable !== false}
                 onChange={(e) => setNewItem({ ...newItem, is_billable: e.target.checked })}
                 style={{ cursor: 'pointer' }}
               />
@@ -459,7 +492,7 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
               <input
                 type="checkbox"
-                checked={newItem.is_taxable}
+                checked={newItem.is_taxable !== false}
                 onChange={(e) => setNewItem({ ...newItem, is_taxable: e.target.checked })}
                 style={{ cursor: 'pointer' }}
               />
@@ -468,17 +501,17 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
               <input
                 type="checkbox"
-                checked={newItem.is_warranty}
+                checked={newItem.is_warranty === true}
                 onChange={(e) => setNewItem({ ...newItem, is_warranty: e.target.checked })}
                 style={{ cursor: 'pointer' }}
               />
               <span style={{ color: '#374151', fontWeight: '500' }}>Warranty</span>
             </label>
 
-            {/* Show labor details if applicable */}
-            {newItem.item_type === 'labor' && newItem.labor_hours && (
-              <div style={{ marginLeft: 'auto', fontSize: '0.75rem', color: '#6B7280', backgroundColor: '#EFF6FF', padding: '0.25rem 0.75rem', borderRadius: '0.25rem' }}>
-                {newItem.labor_hours}h @ ${newItem.labor_rate}/hr = ${(newItem.labor_hours * (newItem.labor_rate || 0)).toFixed(2)}
+            {/* Show total if quantity and price set */}
+            {newItem.quantity && newItem.unit_price && (
+              <div style={{ marginLeft: 'auto', fontSize: '0.875rem', color: '#111827', fontWeight: '600' }}>
+                Total: ${((newItem.quantity || 0) * (newItem.unit_price || 0)).toFixed(2)}
               </div>
             )}
           </div>
@@ -724,6 +757,348 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
             </div>
           </div>
         </>
+      )}
+
+      {/* Form Popup - Detailed Line Item Editor */}
+      {showFormPopup && formEditItem && (
+        <div
+          onClick={() => setShowFormPopup(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+            padding: '2rem'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '0.75rem',
+              width: '100%',
+              maxWidth: '600px',
+              maxHeight: '85vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
+            }}
+          >
+            {/* Header */}
+            <div style={{
+              padding: '1.5rem',
+              borderBottom: '1px solid #E5E7EB',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              position: 'sticky',
+              top: 0,
+              backgroundColor: 'white',
+              zIndex: 10
+            }}>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '600', color: '#1F2937' }}>
+                Line Item Details
+              </h3>
+              <button
+                onClick={() => setShowFormPopup(false)}
+                style={{
+                  padding: '0.5rem',
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#6B7280',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Form Content */}
+            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {/* Type and Product */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem', color: '#374151' }}>
+                    Type
+                  </label>
+                  <select
+                    value={formEditItem.item_type}
+                    onChange={(e) => setFormEditItem({ ...formEditItem, item_type: e.target.value as any, product: '' })}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '1px solid #D1D5DB',
+                      borderRadius: '0.5rem',
+                      fontSize: '0.875rem'
+                    }}
+                  >
+                    <option value="labor">Labor</option>
+                    <option value="parts">Parts</option>
+                    <option value="miscellaneous">Miscellaneous</option>
+                    <option value="flat_rate">Flat Rate</option>
+                    <option value="sub_contractor">Sub-Contractor</option>
+                    <option value="equipment">Equipment</option>
+                    <option value="freight">Freight</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem', color: '#374151' }}>
+                    Product
+                  </label>
+                  <select
+                    value={formEditItem.product || ''}
+                    onChange={(e) => setFormEditItem({ ...formEditItem, product: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '1px solid #D1D5DB',
+                      borderRadius: '0.5rem',
+                      fontSize: '0.875rem'
+                    }}
+                  >
+                    <option value="">Select...</option>
+                    {PRODUCT_OPTIONS[formEditItem.item_type || 'labor']?.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Part Details (if Parts/Misc) */}
+              {(formEditItem.item_type === 'parts' || formEditItem.item_type === 'miscellaneous') && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem', color: '#374151' }}>
+                      Part Number
+                    </label>
+                    <input
+                      type="text"
+                      value={formEditItem.part_number || ''}
+                      onChange={(e) => setFormEditItem({ ...formEditItem, part_number: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem',
+                        border: '1px solid #D1D5DB',
+                        borderRadius: '0.5rem',
+                        fontSize: '0.875rem'
+                      }}
+                      placeholder="Enter part number..."
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem', color: '#374151' }}>
+                      Manufacturer
+                    </label>
+                    <input
+                      type="text"
+                      value={formEditItem.manufacturer || ''}
+                      onChange={(e) => setFormEditItem({ ...formEditItem, manufacturer: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem',
+                        border: '1px solid #D1D5DB',
+                        borderRadius: '0.5rem',
+                        fontSize: '0.875rem'
+                      }}
+                      placeholder="Enter manufacturer..."
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Pricing */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem', color: '#374151' }}>
+                    Unit Cost
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formEditItem.unit_cost || 0}
+                    onChange={(e) => setFormEditItem({ ...formEditItem, unit_cost: parseFloat(e.target.value) || 0 })}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '1px solid #D1D5DB',
+                      borderRadius: '0.5rem',
+                      fontSize: '0.875rem',
+                      textAlign: 'right'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem', color: '#374151' }}>
+                    Markup %
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    value={formEditItem.markup_percentage || 0}
+                    onChange={(e) => {
+                      const markup = parseFloat(e.target.value) || 0;
+                      const cost = formEditItem.unit_cost || 0;
+                      const price = cost * (1 + markup / 100);
+                      setFormEditItem({
+                        ...formEditItem,
+                        markup_percentage: markup,
+                        unit_price: price
+                      });
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '1px solid #D1D5DB',
+                      borderRadius: '0.5rem',
+                      fontSize: '0.875rem',
+                      textAlign: 'right'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem', color: '#374151' }}>
+                    Unit Price
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formEditItem.unit_price || 0}
+                    onChange={(e) => setFormEditItem({ ...formEditItem, unit_price: parseFloat(e.target.value) || 0 })}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '1px solid #D1D5DB',
+                      borderRadius: '0.5rem',
+                      fontSize: '0.875rem',
+                      textAlign: 'right'
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem', color: '#374151' }}>
+                  Notes
+                </label>
+                <textarea
+                  value={formEditItem.notes || ''}
+                  onChange={(e) => setFormEditItem({ ...formEditItem, notes: e.target.value })}
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid #D1D5DB',
+                    borderRadius: '0.5rem',
+                    fontSize: '0.875rem',
+                    fontFamily: 'inherit',
+                    resize: 'vertical'
+                  }}
+                  placeholder="Additional notes..."
+                />
+              </div>
+
+              {/* Flags */}
+              <div style={{ display: 'flex', gap: '1.5rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={formEditItem.is_billable !== false}
+                    onChange={(e) => setFormEditItem({ ...formEditItem, is_billable: e.target.checked })}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span style={{ fontWeight: '500' }}>Billable</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={formEditItem.is_taxable !== false}
+                    onChange={(e) => setFormEditItem({ ...formEditItem, is_taxable: e.target.checked })}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span style={{ fontWeight: '500' }}>Taxable</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={formEditItem.is_warranty === true}
+                    onChange={(e) => setFormEditItem({ ...formEditItem, is_warranty: e.target.checked })}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span style={{ fontWeight: '500' }}>Warranty Work</span>
+                </label>
+                {formEditItem.item_type === 'parts' && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={formEditItem.is_inventory === true}
+                      onChange={(e) => setFormEditItem({ ...formEditItem, is_inventory: e.target.checked })}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    <span style={{ fontWeight: '500' }}>Inventory Part</span>
+                  </label>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: '1.5rem',
+              borderTop: '1px solid #E5E7EB',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '0.75rem',
+              position: 'sticky',
+              bottom: 0,
+              backgroundColor: 'white'
+            }}>
+              <button
+                onClick={() => setShowFormPopup(false)}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  backgroundColor: 'white',
+                  color: '#374151',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '0.5rem',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setNewItem(formEditItem);
+                  setShowFormPopup(false);
+                }}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  backgroundColor: '#3B82F6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '500'
+                }}
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
