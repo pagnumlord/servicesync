@@ -254,8 +254,8 @@ SELECT
   wo.completed_date,
   wo.customer_remarks,
   wo.scheduled_date,
-  wo.time_slot,
-  wo.zone,
+  wo.scheduled_time_slot as time_slot,
+  wo.customer_zone as zone,
   -- Get latest assignment info
   latest_assignment.assignment_date AS last_visit_date,
   latest_assignment.technician_id AS last_tech_id,
