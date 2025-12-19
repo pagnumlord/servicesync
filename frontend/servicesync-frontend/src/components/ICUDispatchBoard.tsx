@@ -1377,6 +1377,8 @@ function TechnicianColumn({
         setQuickPreviewWorkOrder={setQuickPreviewWorkOrder}
         isFirstAM={true}
         preventScroll={true} // Add this to prevent First AM from scrolling
+        onCheckIn={onCheckIn}
+        onCheckOut={onCheckOut}
       />
 
       {/* Unscheduled Slot - FLEXIBLE HEIGHT */}
@@ -1398,6 +1400,8 @@ function TechnicianColumn({
         infoDisplayMode={infoDisplayMode}
         setQuickPreviewWorkOrder={setQuickPreviewWorkOrder}
         isFirstAM={false}
+        onCheckIn={onCheckIn}
+        onCheckOut={onCheckOut}
       />
     </div>
   );
@@ -1424,6 +1428,8 @@ interface CompactTimeSlotProps {
   setQuickPreviewWorkOrder: (workOrder: WorkOrder | null) => void;
   isFirstAM?: boolean;
   preventScroll?: boolean; // Add new prop for preventing scroll
+  onCheckIn: (workOrder: EnhancedWorkOrder) => void;
+  onCheckOut: (workOrder: EnhancedWorkOrder) => void;
 }
 
 function CompactTimeSlot({
@@ -1445,7 +1451,9 @@ function CompactTimeSlot({
   infoDisplayMode = 'equipment',
   setQuickPreviewWorkOrder,
   isFirstAM = false,
-  preventScroll = false // Add new parameter
+  preventScroll = false, // Add new parameter
+  onCheckIn,
+  onCheckOut
 }: CompactTimeSlotProps) {
   const isDragOver = dragOverTarget === targetId;
 
