@@ -4106,6 +4106,739 @@ app.put('/api/work-orders/:id/parts-ready', async (req, res) => {
   }
 });
 
+// ====================================
+// PURCHASE ORDER MANAGEMENT API
+// ====================================
+
+// -------------------- VENDORS --------------------
+
+// Get all vendors
+app.get('/api/vendors', async (req, res) => {
+  try {
+    const { active_only } = req.query;
+
+    let query = 'SELECT * FROM vendors';
+    if (active_only === 'true') {
+      query += ' WHERE is_active = TRUE';
+    }
+    query += ' ORDER BY vendor_name';
+
+    const result = await pool.query(query);
+
+    res.json({
+      vendors: result.rows,
+      count: result.rows.length
+    });
+  } catch (error) {
+    console.error('❌ Vendors fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch vendors' });
+  }
+});
+
+// Get vendor by ID
+app.get('/api/vendors/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      'SELECT * FROM vendors WHERE id = $1',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Vendor not found' });
+    }
+
+    res.json({ vendor: result.rows[0] });
+  } catch (error) {
+    console.error('❌ Vendor fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch vendor' });
+  }
+});
+
+// Create new vendor
+app.post('/api/vendors', async (req, res) => {
+  try {
+    const {
+      vendor_name,
+      vendor_code,
+      payment_type,
+      contact_person,
+      phone,
+      email,
+      website,
+      address_line1,
+      address_line2,
+      city,
+      state,
+      zip,
+      account_number,
+      terms,
+      credit_limit,
+      notes,
+      created_by
+    } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO vendors (
+        vendor_name, vendor_code, payment_type, contact_person, phone, email, website,
+        address_line1, address_line2, city, state, zip, account_number, terms,
+        credit_limit, notes, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      RETURNING *`,
+      [
+        vendor_name, vendor_code, payment_type || 'net_30', contact_person, phone, email, website,
+        address_line1, address_line2, city, state, zip, account_number, terms,
+        credit_limit, notes, created_by
+      ]
+    );
+
+    console.log(`✅ Vendor created: ${vendor_name}`);
+    io.emit('vendorCreated', result.rows[0]);
+
+    res.status(201).json({
+      message: 'Vendor created successfully',
+      vendor: result.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ Vendor creation error:', error);
+    res.status(500).json({ error: 'Failed to create vendor' });
+  }
+});
+
+// Update vendor
+app.put('/api/vendors/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateFields = req.body;
+
+    // Build dynamic update query
+    const fields = [];
+    const values = [];
+    let paramCount = 1;
+
+    Object.keys(updateFields).forEach(key => {
+      if (key !== 'id' && key !== 'created_at') {
+        fields.push(`${key} = $${paramCount}`);
+        values.push(updateFields[key]);
+        paramCount++;
+      }
+    });
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    fields.push(`updated_at = NOW()`);
+    values.push(id);
+
+    const query = `UPDATE vendors SET ${fields.join(', ')} WHERE id = $${paramCount} RETURNING *`;
+    const result = await pool.query(query, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Vendor not found' });
+    }
+
+    console.log(`✅ Vendor updated: ${result.rows[0].vendor_name}`);
+    io.emit('vendorUpdated', result.rows[0]);
+
+    res.json({
+      message: 'Vendor updated successfully',
+      vendor: result.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ Vendor update error:', error);
+    res.status(500).json({ error: 'Failed to update vendor' });
+  }
+});
+
+// -------------------- PURCHASE ORDERS --------------------
+
+// Get all purchase orders with summary
+app.get('/api/purchase-orders', async (req, res) => {
+  try {
+    const { status, work_order_id, vendor_id } = req.query;
+
+    let query = 'SELECT * FROM purchase_order_summary WHERE 1=1';
+    const params = [];
+    let paramCount = 1;
+
+    if (status) {
+      query += ` AND status = $${paramCount}`;
+      params.push(status);
+      paramCount++;
+    }
+
+    if (work_order_id) {
+      query += ` AND work_order_id = $${paramCount}`;
+      params.push(work_order_id);
+      paramCount++;
+    }
+
+    if (vendor_id) {
+      query += ` AND vendor_id = $${paramCount}`;
+      params.push(vendor_id);
+      paramCount++;
+    }
+
+    query += ' ORDER BY order_date DESC, po_number DESC';
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      purchase_orders: result.rows,
+      count: result.rows.length
+    });
+  } catch (error) {
+    console.error('❌ PO fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch purchase orders' });
+  }
+});
+
+// Get PO by ID with items
+app.get('/api/purchase-orders/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get PO summary
+    const poResult = await pool.query(
+      'SELECT * FROM purchase_order_summary WHERE id = $1',
+      [id]
+    );
+
+    if (poResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Purchase order not found' });
+    }
+
+    // Get PO items
+    const itemsResult = await pool.query(
+      'SELECT * FROM purchase_order_items WHERE po_id = $1 ORDER BY line_number',
+      [id]
+    );
+
+    res.json({
+      purchase_order: poResult.rows[0],
+      items: itemsResult.rows
+    });
+  } catch (error) {
+    console.error('❌ PO detail fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch purchase order details' });
+  }
+});
+
+// Create new purchase order
+app.post('/api/purchase-orders', async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const {
+      work_order_id,
+      vendor_id,
+      expected_delivery_date,
+      order_notes,
+      ordered_by,
+      items // Array of line items
+    } = req.body;
+
+    // Generate PO number
+    const poNumberResult = await client.query('SELECT generate_po_number() AS po_number');
+    const po_number = poNumberResult.rows[0].po_number;
+
+    // Calculate totals from items
+    let subtotal = 0;
+    if (items && items.length > 0) {
+      subtotal = items.reduce((sum, item) => {
+        return sum + (item.quantity_ordered * item.unit_price);
+      }, 0);
+    }
+
+    const tax = subtotal * 0.0; // Tax calculated later if needed
+    const shipping = 0; // Shipping added later if needed
+    const total_amount = subtotal + tax + shipping;
+
+    // Create PO
+    const poResult = await client.query(
+      `INSERT INTO purchase_orders (
+        po_number, work_order_id, vendor_id, expected_delivery_date,
+        subtotal, tax, shipping, total_amount, order_notes, ordered_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *`,
+      [
+        po_number, work_order_id, vendor_id, expected_delivery_date,
+        subtotal, tax, shipping, total_amount, order_notes, ordered_by
+      ]
+    );
+
+    const po_id = poResult.rows[0].id;
+
+    // Add line items
+    const createdItems = [];
+    if (items && items.length > 0) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const extended_price = item.quantity_ordered * item.unit_price;
+
+        const itemResult = await client.query(
+          `INSERT INTO purchase_order_items (
+            po_id, line_number, part_number, description,
+            quantity_ordered, unit_price, extended_price, item_notes
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          RETURNING *`,
+          [
+            po_id, i + 1, item.part_number, item.description,
+            item.quantity_ordered, item.unit_price, extended_price, item.item_notes
+          ]
+        );
+
+        createdItems.push(itemResult.rows[0]);
+      }
+    }
+
+    // If PO is for a work order, move WO to "Parts Ordered" queue
+    if (work_order_id) {
+      await client.query(
+        `SELECT move_work_order_to_queue($1, 'Parts Ordered', $2, $3, TRUE)`,
+        [work_order_id, ordered_by, `PO ${po_number} created`]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    console.log(`✅ Purchase order created: ${po_number}`);
+    io.emit('purchaseOrderCreated', { po: poResult.rows[0], items: createdItems });
+
+    if (work_order_id) {
+      io.emit('queueUpdated', { workOrderId: work_order_id, queueName: 'Parts Ordered' });
+    }
+
+    res.status(201).json({
+      message: 'Purchase order created successfully',
+      purchase_order: poResult.rows[0],
+      items: createdItems
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ PO creation error:', error);
+    res.status(500).json({ error: 'Failed to create purchase order' });
+  } finally {
+    client.release();
+  }
+});
+
+// Update purchase order
+app.put('/api/purchase-orders/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateFields = req.body;
+
+    // Build dynamic update query
+    const fields = [];
+    const values = [];
+    let paramCount = 1;
+
+    Object.keys(updateFields).forEach(key => {
+      if (key !== 'id' && key !== 'created_at' && key !== 'po_number') {
+        fields.push(`${key} = $${paramCount}`);
+        values.push(updateFields[key]);
+        paramCount++;
+      }
+    });
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    fields.push(`updated_at = NOW()`);
+    values.push(id);
+
+    const query = `UPDATE purchase_orders SET ${fields.join(', ')} WHERE id = $${paramCount} RETURNING *`;
+    const result = await pool.query(query, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Purchase order not found' });
+    }
+
+    console.log(`✅ PO updated: ${result.rows[0].po_number}`);
+    io.emit('purchaseOrderUpdated', result.rows[0]);
+
+    res.json({
+      message: 'Purchase order updated successfully',
+      purchase_order: result.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ PO update error:', error);
+    res.status(500).json({ error: 'Failed to update purchase order' });
+  }
+});
+
+// Receive purchase order (auto-add to register)
+app.post('/api/purchase-orders/:id/receive', async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const { id } = req.params;
+    const { received_by, receiving_notes, partial_receive, items } = req.body;
+
+    // Update item quantities if provided
+    if (items && items.length > 0) {
+      for (const item of items) {
+        await client.query(
+          'SELECT receive_po_item($1, $2, $3, $4)',
+          [item.id, item.quantity_received, item.is_backordered, item.backorder_eta]
+        );
+      }
+    }
+
+    // Receive the PO (this auto-adds to register)
+    const result = await client.query(
+      'SELECT receive_purchase_order($1, $2, $3, $4) AS success',
+      [id, received_by, receiving_notes, partial_receive || false]
+    );
+
+    // Get updated PO
+    const poResult = await client.query(
+      'SELECT * FROM purchase_order_summary WHERE id = $1',
+      [id]
+    );
+
+    const po = poResult.rows[0];
+
+    // Move work order to Ready to Schedule if not partial
+    if (po.work_order_id && !partial_receive) {
+      await client.query(
+        `SELECT move_work_order_to_queue($1, 'Ready to Schedule', $2, $3, TRUE)`,
+        [po.work_order_id, received_by, `PO ${po.po_number} received`]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    console.log(`✅ PO received: ${po.po_number}${partial_receive ? ' (partial)' : ''}`);
+    io.emit('purchaseOrderReceived', po);
+
+    if (po.work_order_id) {
+      io.emit('queueUpdated', {
+        workOrderId: po.work_order_id,
+        queueName: partial_receive ? 'Parts Ordered' : 'Ready to Schedule'
+      });
+      io.emit('workOrderRegisterUpdated', { workOrderId: po.work_order_id });
+    }
+
+    res.json({
+      message: partial_receive ? 'PO partially received' : 'PO received and added to register',
+      purchase_order: po,
+      auto_added: !partial_receive
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ PO receive error:', error);
+    res.status(500).json({ error: error.message || 'Failed to receive purchase order' });
+  } finally {
+    client.release();
+  }
+});
+
+// Add item to purchase order
+app.post('/api/purchase-orders/:id/items', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { part_number, description, quantity_ordered, unit_price, item_notes } = req.body;
+
+    // Get next line number
+    const lineResult = await pool.query(
+      'SELECT COALESCE(MAX(line_number), 0) + 1 AS next_line FROM purchase_order_items WHERE po_id = $1',
+      [id]
+    );
+    const line_number = lineResult.rows[0].next_line;
+
+    const extended_price = quantity_ordered * unit_price;
+
+    const result = await pool.query(
+      `INSERT INTO purchase_order_items (
+        po_id, line_number, part_number, description,
+        quantity_ordered, unit_price, extended_price, item_notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *`,
+      [id, line_number, part_number, description, quantity_ordered, unit_price, extended_price, item_notes]
+    );
+
+    // Update PO totals
+    await pool.query(
+      `UPDATE purchase_orders
+       SET subtotal = (SELECT SUM(extended_price) FROM purchase_order_items WHERE po_id = $1),
+           total_amount = (SELECT SUM(extended_price) FROM purchase_order_items WHERE po_id = $1),
+           updated_at = NOW()
+       WHERE id = $1`,
+      [id]
+    );
+
+    console.log(`✅ Item added to PO ${id}`);
+    io.emit('purchaseOrderItemAdded', { po_id: id, item: result.rows[0] });
+
+    res.status(201).json({
+      message: 'Item added to purchase order',
+      item: result.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ PO item add error:', error);
+    res.status(500).json({ error: 'Failed to add item to purchase order' });
+  }
+});
+
+// Update PO item
+app.put('/api/purchase-order-items/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateFields = req.body;
+
+    // Recalculate extended price if quantity or unit_price changed
+    if (updateFields.quantity_ordered || updateFields.unit_price) {
+      const currentResult = await pool.query(
+        'SELECT quantity_ordered, unit_price FROM purchase_order_items WHERE id = $1',
+        [id]
+      );
+
+      const current = currentResult.rows[0];
+      const newQty = updateFields.quantity_ordered || current.quantity_ordered;
+      const newPrice = updateFields.unit_price || current.unit_price;
+      updateFields.extended_price = newQty * newPrice;
+    }
+
+    // Build dynamic update query
+    const fields = [];
+    const values = [];
+    let paramCount = 1;
+
+    Object.keys(updateFields).forEach(key => {
+      if (key !== 'id' && key !== 'po_id') {
+        fields.push(`${key} = $${paramCount}`);
+        values.push(updateFields[key]);
+        paramCount++;
+      }
+    });
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(id);
+
+    const query = `UPDATE purchase_order_items SET ${fields.join(', ')} WHERE id = $${paramCount} RETURNING *`;
+    const result = await pool.query(query, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'PO item not found' });
+    }
+
+    // Update PO totals
+    const po_id = result.rows[0].po_id;
+    await pool.query(
+      `UPDATE purchase_orders
+       SET subtotal = (SELECT SUM(extended_price) FROM purchase_order_items WHERE po_id = $1),
+           total_amount = (SELECT SUM(extended_price) FROM purchase_order_items WHERE po_id = $1),
+           updated_at = NOW()
+       WHERE id = $1`,
+      [po_id]
+    );
+
+    console.log(`✅ PO item updated: ${id}`);
+    io.emit('purchaseOrderItemUpdated', result.rows[0]);
+
+    res.json({
+      message: 'PO item updated successfully',
+      item: result.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ PO item update error:', error);
+    res.status(500).json({ error: 'Failed to update PO item' });
+  }
+});
+
+// Delete PO item
+app.delete('/api/purchase-order-items/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get PO ID before deleting
+    const poResult = await pool.query(
+      'SELECT po_id FROM purchase_order_items WHERE id = $1',
+      [id]
+    );
+
+    if (poResult.rows.length === 0) {
+      return res.status(404).json({ error: 'PO item not found' });
+    }
+
+    const po_id = poResult.rows[0].po_id;
+
+    // Delete the item
+    await pool.query('DELETE FROM purchase_order_items WHERE id = $1', [id]);
+
+    // Update PO totals
+    await pool.query(
+      `UPDATE purchase_orders
+       SET subtotal = COALESCE((SELECT SUM(extended_price) FROM purchase_order_items WHERE po_id = $1), 0),
+           total_amount = COALESCE((SELECT SUM(extended_price) FROM purchase_order_items WHERE po_id = $1), 0),
+           updated_at = NOW()
+       WHERE id = $1`,
+      [po_id]
+    );
+
+    console.log(`✅ PO item deleted: ${id}`);
+    io.emit('purchaseOrderItemDeleted', { po_id, item_id: id });
+
+    res.json({ message: 'PO item deleted successfully' });
+  } catch (error) {
+    console.error('❌ PO item delete error:', error);
+    res.status(500).json({ error: 'Failed to delete PO item' });
+  }
+});
+
+// -------------------- CONSIGNMENT STOCK --------------------
+
+// Get all consignment stock
+app.get('/api/consignment/stock', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM consignment_stock_levels ORDER BY vendor_name, part_number'
+    );
+
+    res.json({
+      stock: result.rows,
+      count: result.rows.length,
+      needs_reorder: result.rows.filter(s => s.needs_reorder).length
+    });
+  } catch (error) {
+    console.error('❌ Consignment stock fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch consignment stock' });
+  }
+});
+
+// Record consignment usage
+app.post('/api/consignment/usage', async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const {
+      consignment_stock_id,
+      work_order_id,
+      quantity_used,
+      unit_price,
+      used_by,
+      notes
+    } = req.body;
+
+    const extended_price = quantity_used * unit_price;
+
+    // Record usage
+    const usageResult = await client.query(
+      `INSERT INTO consignment_usage (
+        consignment_stock_id, work_order_id, quantity_used,
+        unit_price, extended_price, used_by, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *`,
+      [consignment_stock_id, work_order_id, quantity_used, unit_price, extended_price, used_by, notes]
+    );
+
+    // Update stock level
+    await client.query(
+      `UPDATE consignment_stock
+       SET quantity_on_hand = quantity_on_hand - $1,
+           updated_at = NOW()
+       WHERE id = $2`,
+      [quantity_used, consignment_stock_id]
+    );
+
+    // Get stock details for auto-add to register
+    const stockResult = await client.query(
+      `SELECT cs.*, v.vendor_name
+       FROM consignment_stock cs
+       JOIN vendors v ON cs.vendor_id = v.id
+       WHERE cs.id = $1`,
+      [consignment_stock_id]
+    );
+
+    const stock = stockResult.rows[0];
+
+    // Auto-add to work order register
+    if (work_order_id) {
+      await client.query(
+        `INSERT INTO work_order_line_items (
+          work_order_id, item_type, description, quantity, unit_price,
+          extended_price, is_taxable, added_by, notes
+        ) VALUES ($1, 'Material', $2, $3, $4, $5, TRUE, $6, $7)`,
+        [
+          work_order_id,
+          `${stock.description} (${stock.vendor_name} - Consignment)`,
+          quantity_used,
+          unit_price,
+          extended_price,
+          used_by,
+          'Auto-added from consignment usage'
+        ]
+      );
+
+      // Mark usage as added to register
+      await client.query(
+        'UPDATE consignment_usage SET added_to_register = TRUE WHERE id = $1',
+        [usageResult.rows[0].id]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    console.log(`✅ Consignment usage recorded for WO ${work_order_id}`);
+    io.emit('consignmentUsageRecorded', usageResult.rows[0]);
+
+    if (work_order_id) {
+      io.emit('workOrderRegisterUpdated', { workOrderId: work_order_id });
+    }
+
+    res.status(201).json({
+      message: 'Consignment usage recorded and added to register',
+      usage: usageResult.rows[0]
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Consignment usage error:', error);
+    res.status(500).json({ error: 'Failed to record consignment usage' });
+  } finally {
+    client.release();
+  }
+});
+
+// Get consignment usage for work order
+app.get('/api/consignment/usage/:workOrderId', async (req, res) => {
+  try {
+    const { workOrderId } = req.params;
+
+    const result = await pool.query(
+      `SELECT cu.*, cs.part_number, cs.description, v.vendor_name, u.username AS used_by_name
+       FROM consignment_usage cu
+       JOIN consignment_stock cs ON cu.consignment_stock_id = cs.id
+       JOIN vendors v ON cs.vendor_id = v.id
+       LEFT JOIN users u ON cu.used_by = u.id
+       WHERE cu.work_order_id = $1
+       ORDER BY cu.used_date DESC`,
+      [workOrderId]
+    );
+
+    res.json({
+      usage: result.rows,
+      count: result.rows.length
+    });
+  } catch (error) {
+    console.error('❌ Consignment usage fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch consignment usage' });
+  }
+});
+
 // ================================
 // WEBSOCKET FOR REAL-TIME UPDATES
 // ================================
