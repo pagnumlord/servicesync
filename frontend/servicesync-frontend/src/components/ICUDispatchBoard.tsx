@@ -1561,8 +1561,8 @@ function CompactTimeSlot({
                   onQuickView={setQuickPreviewWorkOrder}
                   onOpenDetails={onWorkOrderSelect}
                   onContextMenu={(e) => onWorkOrderContextMenu(e, workOrder)}
-                  onCheckIn={handleCheckIn}
-                  onCheckOut={handleCheckOut}
+                  onCheckIn={onCheckIn}
+                  onCheckOut={onCheckOut}
                   showCheckInOut={true}
                 />
               </div>
