@@ -88,6 +88,21 @@ CREATE INDEX IF NOT EXISTS idx_work_order_assignments_tech_id ON work_order_assi
 CREATE INDEX IF NOT EXISTS idx_work_order_assignments_tech_date
   ON work_order_assignments(technician_id, assignment_date);
 
+-- Migrate existing status values to new standard
+-- Map existing statuses to new status values before adding constraint
+UPDATE work_orders
+SET status = CASE
+  WHEN status IN ('Complete', 'Completed') THEN 'Complete'
+  WHEN status = 'Suspended' THEN 'Suspended'
+  WHEN status IN ('In Progress', 'Assigned', 'Open', 'Unassigned') THEN 'Active'
+  ELSE 'Active'
+END
+WHERE status IS NOT NULL
+  AND status NOT IN ('Active', 'Suspended', 'Complete');
+
+-- Set any NULL statuses to 'Active'
+UPDATE work_orders SET status = 'Active' WHERE status IS NULL;
+
 -- Add check constraints
 ALTER TABLE work_orders
   DROP CONSTRAINT IF EXISTS chk_work_orders_status;
@@ -216,6 +231,3 @@ COMMENT ON COLUMN work_orders.completed_date IS 'Date WO was completed - seals W
 COMMENT ON COLUMN work_orders.customer_remarks IS 'Customer notes and updates (no character limit)';
 COMMENT ON TABLE work_order_assignments IS 'Tracks physical on-site visits only (NOT carry-over days)';
 COMMENT ON COLUMN work_order_assignments.status_after_visit IS 'Status set after this visit: Active (continuing), Suspended (needs return), Complete (finished)';
-
--- Migration note: Set existing work orders to 'Active' status if null
-UPDATE work_orders SET status = 'Active' WHERE status IS NULL;

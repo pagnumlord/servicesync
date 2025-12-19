@@ -38,7 +38,7 @@ const CheckOutModal: React.FC<CheckOutModalProps> = ({
         <div className="flex items-center justify-between p-4 border-b">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Check Out</h2>
-            <p className="text-sm text-gray-600">WO-{workOrder.work_order_number}</p>
+            <p className="text-sm text-gray-600">WO-{workOrder.wo_number}</p>
           </div>
           <button
             onClick={onClose}

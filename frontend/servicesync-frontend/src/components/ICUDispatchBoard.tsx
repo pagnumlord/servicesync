@@ -1093,6 +1093,8 @@ function ICUDispatchBoard({
                   setDragOverTarget={setDragOverTarget}
                   infoDisplayMode={infoDisplayMode}
                   setQuickPreviewWorkOrder={setQuickPreviewWorkOrder}
+                  onCheckIn={handleCheckIn}
+                  onCheckOut={handleCheckOut}
                 />
               ))}
             </div>
@@ -1256,6 +1258,8 @@ interface TechnicianColumnProps {
   setDragOverTarget: (target: string | null) => void;
   infoDisplayMode?: 'equipment' | 'notes';
   setQuickPreviewWorkOrder: (workOrder: WorkOrder | null) => void;
+  onCheckIn: (workOrder: EnhancedWorkOrder) => void;
+  onCheckOut: (workOrder: EnhancedWorkOrder) => void;
 }
 
 function TechnicianColumn({
@@ -1269,7 +1273,9 @@ function TechnicianColumn({
   dragOverTarget,
   setDragOverTarget,
   infoDisplayMode = 'equipment',
-  setQuickPreviewWorkOrder
+  setQuickPreviewWorkOrder,
+  onCheckIn,
+  onCheckOut
 }: TechnicianColumnProps) {
   
   const workOrders = technician.workOrders || technician.work_orders || [];
