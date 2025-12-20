@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Home, Search, Settings, Menu, MessageCircle, MapPin, CheckSquare, 
+import {
+  Home, Search, Settings, Menu, MessageCircle, MapPin, CheckSquare,
   Users, Package, BarChart3, Plus, User, Bell, LogOut, Grid3X3,
-  TrendingUp, Clock, AlertTriangle, DollarSign, Calendar, Wrench
+  TrendingUp, Clock, AlertTriangle, DollarSign, Calendar, Wrench, ShoppingCart
 } from 'lucide-react';
 
 
@@ -23,6 +23,9 @@ import CustomerManagement from './components/CustomerManagement';
 import MapPage from './components/MapPage';
 import WorkOrderDetails from './components/WorkOrderDetails';
 import QueueBoard from './components/QueueBoard';
+import PurchaseOrderList from './components/PurchaseOrderList';
+import NewPurchaseOrderDialog from './components/NewPurchaseOrderDialog';
+import ReceivePODialog from './components/ReceivePODialog';
 import Login from './components/Login';
 import Register from './components/Register';
 import { useAuth } from './context/AuthContext';
@@ -51,6 +54,11 @@ const ServiceSync = () => {
     isOpen: false,
     workOrder: null
   });
+
+  // Purchase Order Dialog States
+  const [showNewPODialog, setShowNewPODialog] = useState(false);
+  const [showReceivePODialog, setShowReceivePODialog] = useState(false);
+  const [selectedPOToReceive, setSelectedPOToReceive] = useState<any>(null);
   
   // Data states
   const [technicians, setTechnicians] = useState<Technician[]>([]);
@@ -73,6 +81,7 @@ const ServiceSync = () => {
     { id: 'dashboard', label: 'Dashboard', icon: Home, color: '#3b82f6' },
     { id: 'dispatch', label: 'Dispatch', icon: Menu, color: '#059669' },
     { id: 'queues', label: 'Queues', icon: Grid3X3, color: '#f59e0b' },
+    { id: 'purchase-orders', label: 'Purchase Orders', icon: ShoppingCart, color: '#10b981' },
     { id: 'map', label: 'Map', icon: MapPin, color: '#dc2626' },
     { id: 'tasks', label: 'Tasks', icon: CheckSquare, color: '#7c3aed' },
     { id: 'customers', label: 'Customers', icon: Users, color: '#ea580c' },
@@ -753,6 +762,16 @@ const handleNewWorkOrder = async (workOrderData: any) => {
           <QueueBoard />
         )}
 
+        {currentView === 'purchase-orders' && (
+          <PurchaseOrderList
+            onCreatePO={() => setShowNewPODialog(true)}
+            onReceivePO={(po) => {
+              setSelectedPOToReceive(po);
+              setShowReceivePODialog(true);
+            }}
+          />
+        )}
+
         {currentView === 'customers' && (
           <CustomerManagement
             onOpenWorkOrder={openWorkOrderDetails}
@@ -941,6 +960,39 @@ const handleNewWorkOrder = async (workOrderData: any) => {
           onUpdate={handleWorkOrderUpdate}
         />
       )}
+
+      {/* New Purchase Order Dialog */}
+      <NewPurchaseOrderDialog
+        isOpen={showNewPODialog}
+        userId={auth.user?.id || 0}
+        onClose={() => setShowNewPODialog(false)}
+        onPOCreated={() => {
+          setShowNewPODialog(false);
+          // Refresh PO list if on that view
+          if (currentView === 'purchase-orders') {
+            window.location.reload(); // Simple refresh for now
+          }
+        }}
+      />
+
+      {/* Receive Purchase Order Dialog */}
+      <ReceivePODialog
+        isOpen={showReceivePODialog}
+        purchaseOrder={selectedPOToReceive}
+        userId={auth.user?.id || 0}
+        onClose={() => {
+          setShowReceivePODialog(false);
+          setSelectedPOToReceive(null);
+        }}
+        onPOReceived={() => {
+          setShowReceivePODialog(false);
+          setSelectedPOToReceive(null);
+          // Refresh PO list if on that view
+          if (currentView === 'purchase-orders') {
+            window.location.reload(); // Simple refresh for now
+          }
+        }}
+      />
     </div>
   );
 };
