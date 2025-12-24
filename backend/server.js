@@ -3643,15 +3643,16 @@ app.get('/api/work-orders/:id/attachments', async (req, res) => {
         id,
         work_order_id,
         file_name,
-        file_type as file_type,
+        file_type,
         file_size,
-        file_url,
-        thumbnail_url,
-        COALESCE(uploaded_by::text, 'System') as uploaded_by,
+        file_path as file_url,
+        file_path as thumbnail_url,
+        file_category,
+        uploaded_by,
         uploaded_at,
-        description
-      FROM work_order_attachments
-      WHERE work_order_id = $1 AND deleted_at IS NULL
+        notes as description
+      FROM file_attachments
+      WHERE work_order_id = $1
       ORDER BY uploaded_at DESC
     `, [workOrderId]);
 
@@ -3684,18 +3685,16 @@ app.post('/api/work-orders/:id/attachments', upload.array('files', 10), async (r
     const uploadedFiles = [];
 
     for (const file of files) {
-      // Build file URL (assuming uploads folder is served statically)
-      const fileUrl = `/uploads/${file.filename}`;
-      const thumbnailUrl = file.mimetype.startsWith('image/') ? fileUrl : null;
+      const filePath = `/uploads/${file.filename}`;
 
       const result = await pool.query(`
-        INSERT INTO work_order_attachments (
+        INSERT INTO file_attachments (
           work_order_id,
           file_name,
           file_type,
           file_size,
-          file_url,
-          thumbnail_url,
+          file_category,
+          file_path,
           uploaded_by,
           uploaded_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
@@ -3705,8 +3704,8 @@ app.post('/api/work-orders/:id/attachments', upload.array('files', 10), async (r
         file.originalname,
         file.mimetype,
         file.size,
-        fileUrl,
-        thumbnailUrl,
+        'photo', // Default category
+        filePath,
         1 // Default user ID - will need to be replaced with actual auth later
       ]);
 
@@ -3726,23 +3725,37 @@ app.post('/api/work-orders/:id/attachments', upload.array('files', 10), async (r
 
 /**
  * @route DELETE /api/work-orders/:id/attachments/:attachmentId
- * @description Soft delete an attachment (sets deleted_at)
+ * @description Delete an attachment
  */
 app.delete('/api/work-orders/:id/attachments/:attachmentId', async (req, res) => {
   try {
     const { id: workOrderId, attachmentId } = req.params;
     console.log(`🗑️ Deleting attachment ${attachmentId} from work order ${workOrderId}`);
 
-    // Soft delete - set deleted_at timestamp
-    const result = await pool.query(`
-      UPDATE work_order_attachments
-      SET deleted_at = NOW(), deleted_by = $1
-      WHERE id = $2 AND work_order_id = $3 AND deleted_at IS NULL
-      RETURNING *
-    `, [1, attachmentId, workOrderId]); // 1 is default user ID
+    // Get file info before deleting
+    const fileResult = await pool.query(
+      'SELECT * FROM file_attachments WHERE id = $1 AND work_order_id = $2',
+      [attachmentId, workOrderId]
+    );
 
-    if (result.rows.length === 0) {
+    if (fileResult.rows.length === 0) {
       return res.status(404).json({ error: 'Attachment not found' });
+    }
+
+    const file = fileResult.rows[0];
+
+    // Delete from database
+    const result = await pool.query(
+      'DELETE FROM file_attachments WHERE id = $1 AND work_order_id = $2 RETURNING *',
+      [attachmentId, workOrderId]
+    );
+
+    // Try to delete from filesystem
+    try {
+      const filePath = path.join(__dirname, file.file_path);
+      await fs.unlink(filePath);
+    } catch (fsError) {
+      console.warn('⚠️  Could not delete file from filesystem:', fsError.message);
     }
 
     console.log(`✅ Attachment ${attachmentId} deleted`);
