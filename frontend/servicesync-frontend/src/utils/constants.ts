@@ -1,9 +1,31 @@
 // Enhanced Constants for ServiceSync - New Status and Type Colors
 // File: frontend/servicesync-frontend/src/utils/constants.ts
 
-// API Configuration
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-export const WEBSOCKET_URL = process.env.REACT_APP_WS_URL || 'http://localhost:5000';
+// API Configuration - Dynamic host detection for network access
+const getBackendHost = () => {
+  // If environment variable is set, use it
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+
+  // Otherwise, use the current hostname (works for both localhost and network IPs)
+  const hostname = window.location.hostname;
+  return `http://${hostname}:5000/api`;
+};
+
+const getWebSocketHost = () => {
+  // If environment variable is set, use it
+  if (process.env.REACT_APP_WS_URL) {
+    return process.env.REACT_APP_WS_URL;
+  }
+
+  // Otherwise, use the current hostname (works for both localhost and network IPs)
+  const hostname = window.location.hostname;
+  return `http://${hostname}:5000`;
+};
+
+export const API_BASE_URL = getBackendHost();
+export const WEBSOCKET_URL = getWebSocketHost();
 
 // NEW STATUS COLORS - Based on your requirements
 export const STATUS_COLORS = {

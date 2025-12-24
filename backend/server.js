@@ -21,8 +21,25 @@ const PORT = process.env.PORT || 5000;
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: "http://localhost:3000",
-    methods: ["GET", "POST", "PUT", "DELETE"]
+    // Allow connections from localhost and any IP on the local network
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or Postman)
+      if (!origin) return callback(null, true);
+
+      // Allow localhost and local network IPs
+      if (
+        origin.includes('localhost') ||
+        origin.includes('127.0.0.1') ||
+        /http:\/\/192\.168\.\d+\.\d+:3000/.test(origin) ||
+        /http:\/\/10\.\d+\.\d+\.\d+:3000/.test(origin)
+      ) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true
   }
 });
 
