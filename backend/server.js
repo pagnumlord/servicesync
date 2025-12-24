@@ -3769,6 +3769,152 @@ app.delete('/api/work-orders/:id/attachments/:attachmentId', async (req, res) =>
   }
 });
 
+// ====================================
+// MULTI-DAY SCHEDULING API
+// ====================================
+
+// Get work orders for a specific date (includes multi-day projects)
+app.get('/api/schedule/date/:date', async (req, res) => {
+  try {
+    const { date } = req.params;
+
+    const result = await pool.query(
+      'SELECT * FROM get_work_orders_for_date($1)',
+      [date]
+    );
+
+    res.json({
+      date,
+      work_orders: result.rows,
+      count: result.rows.length
+    });
+  } catch (error) {
+    console.error('❌ Schedule date fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch schedule for date' });
+  }
+});
+
+// Get work orders for a date range (calendar view)
+app.get('/api/schedule/range', async (req, res) => {
+  try {
+    const { start_date, end_date } = req.query;
+
+    if (!start_date || !end_date) {
+      return res.status(400).json({ error: 'start_date and end_date required' });
+    }
+
+    const result = await pool.query(
+      'SELECT * FROM get_work_orders_for_date_range($1, $2)',
+      [start_date, end_date]
+    );
+
+    res.json({
+      start_date,
+      end_date,
+      work_orders: result.rows,
+      count: result.rows.length
+    });
+  } catch (error) {
+    console.error('❌ Schedule range fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch schedule range' });
+  }
+});
+
+// Get upcoming multi-day projects
+app.get('/api/schedule/multi-day-projects', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM upcoming_multi_day_projects');
+
+    res.json({
+      projects: result.rows,
+      count: result.rows.length
+    });
+  } catch (error) {
+    console.error('❌ Multi-day projects fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch multi-day projects' });
+  }
+});
+
+// Update work order to be multi-day
+app.put('/api/work-orders/:id/make-multi-day', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { project_start_date, project_end_date, estimated_hours, project_notes } = req.body;
+
+    if (!project_start_date || !project_end_date) {
+      return res.status(400).json({ error: 'project_start_date and project_end_date required' });
+    }
+
+    // Validate date range
+    if (new Date(project_end_date) < new Date(project_start_date)) {
+      return res.status(400).json({ error: 'End date must be after start date' });
+    }
+
+    const result = await pool.query(
+      `UPDATE work_orders
+       SET is_multi_day = TRUE,
+           project_start_date = $1,
+           project_end_date = $2,
+           estimated_hours = $3,
+           project_notes = $4,
+           updated_at = NOW()
+       WHERE id = $5
+       RETURNING *`,
+      [project_start_date, project_end_date, estimated_hours, project_notes, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Work order not found' });
+    }
+
+    console.log(`✅ Work order ${id} converted to multi-day project`);
+    io.emit('workOrderUpdated', result.rows[0]);
+
+    res.json({
+      message: 'Work order converted to multi-day project',
+      work_order: result.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ Make multi-day error:', error);
+    res.status(500).json({ error: 'Failed to convert to multi-day project' });
+  }
+});
+
+// Convert multi-day back to single day
+app.put('/api/work-orders/:id/make-single-day', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      `UPDATE work_orders
+       SET is_multi_day = FALSE,
+           project_start_date = NULL,
+           project_end_date = NULL,
+           estimated_hours = NULL,
+           project_notes = NULL,
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Work order not found' });
+    }
+
+    console.log(`✅ Work order ${id} converted back to single day`);
+    io.emit('workOrderUpdated', result.rows[0]);
+
+    res.json({
+      message: 'Work order converted to single day',
+      work_order: result.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ Make single day error:', error);
+    res.status(500).json({ error: 'Failed to convert to single day' });
+  }
+});
+
 // ================================
 // GPS AND LOCATION TRACKING
 // ================================

@@ -35,5 +35,9 @@
 \echo 'Applying equipment schema...'
 \ir equipment-schema.sql
 
+-- 7. Multi-day scheduling
+\echo 'Applying multi-day scheduling schema...'
+\ir multi-day-scheduling-schema.sql
+
 \echo 'Schema initialization complete!'
 \echo 'You can now start the ServiceSync server.'
