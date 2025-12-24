@@ -5,7 +5,11 @@
 
 \echo 'Starting ServiceSync schema initialization...'
 
--- 1. Base schemas (no dependencies)
+-- 0. Core tables (MUST be first - all other schemas depend on these)
+\echo 'Applying base schema (customers, work_orders, technicians)...'
+\ir base-schema.sql
+
+-- 1. Base schemas (no dependencies on other tables)
 \echo 'Applying zones schema...'
 \ir zones-schema.sql
 
