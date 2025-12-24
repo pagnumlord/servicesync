@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS equipment (
   customer_id INTEGER NOT NULL,
 
   -- Equipment identification
+  equipment_number VARCHAR(50) UNIQUE, -- Unique equipment/unit number
   equipment_type equipment_type NOT NULL,
   manufacturer VARCHAR(100),
   model_number VARCHAR(100),
