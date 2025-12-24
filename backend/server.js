@@ -4839,6 +4839,157 @@ app.get('/api/consignment/usage/:workOrderId', async (req, res) => {
   }
 });
 
+// ====================================
+// FILE ATTACHMENTS API
+// ====================================
+
+// Upload file(s) to work order
+app.post('/api/files/upload', upload.array('file', 10), async (req, res) => {
+  try {
+    const { work_order_id, file_category, uploaded_by, notes } = req.body;
+    const files = req.files;
+
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+
+    if (!work_order_id) {
+      return res.status(400).json({ error: 'work_order_id is required' });
+    }
+
+    const uploadedFiles = [];
+
+    for (const file of files) {
+      const filePath = `/uploads/${file.filename}`;
+
+      const result = await pool.query(
+        `INSERT INTO file_attachments (
+          work_order_id, file_name, file_type, file_size, file_category,
+          file_path, uploaded_by, notes
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING *`,
+        [
+          work_order_id,
+          file.originalname,
+          file.mimetype,
+          file.size,
+          file_category || 'photo',
+          filePath,
+          uploaded_by || null,
+          notes || null
+        ]
+      );
+
+      uploadedFiles.push(result.rows[0]);
+    }
+
+    console.log(`✅ Uploaded ${uploadedFiles.length} file(s) to WO ${work_order_id}`);
+    io.emit('filesUploaded', { workOrderId: work_order_id, files: uploadedFiles });
+
+    res.status(201).json({
+      message: `${uploadedFiles.length} file(s) uploaded successfully`,
+      files: uploadedFiles
+    });
+  } catch (error) {
+    console.error('❌ File upload error:', error);
+    res.status(500).json({ error: 'Failed to upload files' });
+  }
+});
+
+// Get all files for a work order
+app.get('/api/work-orders/:id/files', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { category } = req.query;
+
+    let query = `
+      SELECT * FROM file_attachments_detail
+      WHERE work_order_id = $1
+    `;
+    const params = [id];
+
+    if (category) {
+      query += ` AND file_category = $2`;
+      params.push(category);
+    }
+
+    query += ` ORDER BY uploaded_at DESC`;
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      files: result.rows,
+      count: result.rows.length
+    });
+  } catch (error) {
+    console.error('❌ Files fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch files' });
+  }
+});
+
+// Get file statistics for a work order
+app.get('/api/work-orders/:id/files/stats', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      'SELECT * FROM get_work_order_file_stats($1)',
+      [id]
+    );
+
+    res.json(result.rows[0] || {
+      total_files: 0,
+      total_size: 0,
+      data_tag_count: 0,
+      receipt_count: 0,
+      photo_count: 0,
+      document_count: 0,
+      other_count: 0
+    });
+  } catch (error) {
+    console.error('❌ File stats fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch file statistics' });
+  }
+});
+
+// Delete a file
+app.delete('/api/files/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get file info before deleting
+    const fileResult = await pool.query(
+      'SELECT * FROM file_attachments WHERE id = $1',
+      [id]
+    );
+
+    if (fileResult.rows.length === 0) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    const file = fileResult.rows[0];
+
+    // Delete from database
+    await pool.query('DELETE FROM file_attachments WHERE id = $1', [id]);
+
+    // Try to delete from filesystem
+    try {
+      const filePath = path.join(__dirname, file.file_path);
+      await fs.unlink(filePath);
+    } catch (fsError) {
+      console.warn('⚠️  Could not delete file from filesystem:', fsError.message);
+    }
+
+    console.log(`✅ File deleted: ${file.file_name}`);
+    io.emit('fileDeleted', { fileId: id, workOrderId: file.work_order_id });
+
+    res.json({ message: 'File deleted successfully' });
+  } catch (error) {
+    console.error('❌ File delete error:', error);
+    res.status(500).json({ error: 'Failed to delete file' });
+  }
+});
+
 // ================================
 // WEBSOCKET FOR REAL-TIME UPDATES
 // ================================
