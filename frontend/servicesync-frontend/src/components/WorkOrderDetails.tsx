@@ -404,12 +404,7 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
                     color: '#374151',
                     lineHeight: '1.6'
                   }}>
-                    {workOrder.service_address || 'Service address not available'}
-                    {workOrder.service_city && (
-                      <div style={{ marginTop: '0.25rem' }}>
-                        {workOrder.service_city}
-                      </div>
-                    )}
+                    {workOrder.service_city || 'Service location not specified'}
                   </div>
                 </div>
               </div>
