@@ -46,15 +46,17 @@ interface QueuePermission {
 
 interface Technician {
   id: number;
-  tech_id: number;
+  employee_number?: string;
   first_name: string;
   last_name: string;
   phone: string;
+  email?: string;
   crew: string;
   van_number: string;
-  skills: string[];
-  profile_image?: string;
-  current_location?: string;
+  notes?: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // ================================
@@ -90,10 +92,11 @@ const Admin: React.FC = () => {
     first_name: '',
     last_name: '',
     phone: '',
+    email: '',
     crew: '',
     van_number: '',
-    skills: '',
-    profile_image: ''
+    employee_number: '',
+    notes: ''
   });
 
   // Load users
@@ -194,8 +197,8 @@ const Admin: React.FC = () => {
 
   // Handle create new technician
   const handleCreateTechnician = async () => {
-    if (!newTech.first_name || !newTech.last_name || !newTech.phone) {
-      alert('Please fill in required fields (name and phone)');
+    if (!newTech.first_name || !newTech.last_name) {
+      alert('Please fill in required fields (first name and last name)');
       return;
     }
 
@@ -204,11 +207,12 @@ const Admin: React.FC = () => {
       const techData = {
         first_name: newTech.first_name,
         last_name: newTech.last_name,
-        phone: newTech.phone,
+        phone: newTech.phone || null,
+        email: newTech.email || null,
         crew: newTech.crew || 'Unassigned',
-        van_number: newTech.van_number || '',
-        skills: newTech.skills ? newTech.skills.split(',').map(s => s.trim()) : [],
-        profile_image: newTech.profile_image || null
+        van_number: newTech.van_number || null,
+        employee_number: newTech.employee_number || null,
+        notes: newTech.notes || null
       };
 
       const response = await fetch('http://localhost:5000/api/technicians', {
@@ -224,10 +228,11 @@ const Admin: React.FC = () => {
           first_name: '',
           last_name: '',
           phone: '',
+          email: '',
           crew: '',
           van_number: '',
-          skills: '',
-          profile_image: ''
+          employee_number: '',
+          notes: ''
         });
         alert('Technician created successfully!');
       } else {
@@ -1011,7 +1016,7 @@ const Admin: React.FC = () => {
 
             <div>
               <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
-                Phone *
+                Phone
               </label>
               <input
                 type="tel"
@@ -1030,6 +1035,44 @@ const Admin: React.FC = () => {
 
             <div>
               <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
+                Email
+              </label>
+              <input
+                type="email"
+                value={newTech.email}
+                onChange={(e) => setNewTech({ ...newTech, email: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.875rem'
+                }}
+                placeholder="john.smith@example.com"
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
+                Employee Number
+              </label>
+              <input
+                type="text"
+                value={newTech.employee_number}
+                onChange={(e) => setNewTech({ ...newTech, employee_number: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.875rem'
+                }}
+                placeholder="EMP-001"
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
                 Van Number
               </label>
               <input
@@ -1043,7 +1086,7 @@ const Admin: React.FC = () => {
                   borderRadius: '0.5rem',
                   fontSize: '0.875rem'
                 }}
-                placeholder="V-101"
+                placeholder="1"
               />
             </div>
 
@@ -1051,8 +1094,7 @@ const Admin: React.FC = () => {
               <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
                 Crew
               </label>
-              <input
-                type="text"
+              <select
                 value={newTech.crew}
                 onChange={(e) => setNewTech({ ...newTech, crew: e.target.value })}
                 style={{
@@ -1060,28 +1102,36 @@ const Admin: React.FC = () => {
                   padding: '0.75rem',
                   border: '1px solid #d1d5db',
                   borderRadius: '0.5rem',
-                  fontSize: '0.875rem'
+                  fontSize: '0.875rem',
+                  backgroundColor: 'white'
                 }}
-                placeholder="A-Team"
-              />
+              >
+                <option value="">Select Team...</option>
+                <option value="Refrigeration">Refrigeration/HVAC</option>
+                <option value="Hot Side">Hot Side/Plumbing</option>
+                <option value="PM">PM Team</option>
+                <option value="Project">Project Team</option>
+                <option value="Service Coordinator">Service Coordinator</option>
+              </select>
             </div>
 
             <div>
               <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
-                Skills (comma-separated)
+                Notes
               </label>
-              <input
-                type="text"
-                value={newTech.skills}
-                onChange={(e) => setNewTech({ ...newTech, skills: e.target.value })}
+              <textarea
+                value={newTech.notes}
+                onChange={(e) => setNewTech({ ...newTech, notes: e.target.value })}
                 style={{
                   width: '100%',
                   padding: '0.75rem',
                   border: '1px solid #d1d5db',
                   borderRadius: '0.5rem',
-                  fontSize: '0.875rem'
+                  fontSize: '0.875rem',
+                  minHeight: '80px',
+                  resize: 'vertical'
                 }}
-                placeholder="HVAC, Refrigeration, Plumbing"
+                placeholder="Additional notes about this technician..."
               />
             </div>
           </div>

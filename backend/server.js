@@ -2442,6 +2442,145 @@ app.get('/api/technicians', async (req, res) => {
   }
 });
 
+/**
+ * @route POST /api/technicians
+ * @description Creates a new technician
+ * @returns {Object} Created technician object
+ */
+app.post('/api/technicians', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { first_name, last_name, phone, email, crew, van_number, employee_number, notes } = req.body;
+
+    console.log(`👨‍🔧 Creating technician: ${first_name} ${last_name}`);
+
+    // Validate required fields
+    if (!first_name || !last_name) {
+      return res.status(400).json({ error: 'First name and last name are required' });
+    }
+
+    const result = await client.query(`
+      INSERT INTO technicians (
+        first_name, last_name, phone, email, crew, van_number, employee_number, notes, is_active
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *
+    `, [first_name, last_name, phone || null, email || null, crew || 'Unassigned', van_number || null, employee_number || null, notes || null, true]);
+
+    await client.query('COMMIT');
+
+    console.log(`✅ Technician created successfully: ID ${result.rows[0].id}`);
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Create technician error:', error);
+
+    // Handle unique constraint violation for employee_number
+    if (error.code === '23505') {
+      return res.status(400).json({ error: 'Employee number already exists' });
+    }
+
+    res.status(500).json({ error: 'Failed to create technician' });
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * @route PUT /api/technicians/:id
+ * @description Updates an existing technician
+ * @returns {Object} Updated technician object
+ */
+app.put('/api/technicians/:id', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const technicianId = req.params.id;
+    const { first_name, last_name, phone, email, crew, van_number, employee_number, notes, is_active } = req.body;
+
+    console.log(`👨‍🔧 Updating technician ID: ${technicianId}`);
+
+    const result = await client.query(`
+      UPDATE technicians
+      SET
+        first_name = COALESCE($1, first_name),
+        last_name = COALESCE($2, last_name),
+        phone = COALESCE($3, phone),
+        email = COALESCE($4, email),
+        crew = COALESCE($5, crew),
+        van_number = COALESCE($6, van_number),
+        employee_number = COALESCE($7, employee_number),
+        notes = COALESCE($8, notes),
+        is_active = COALESCE($9, is_active),
+        updated_at = NOW()
+      WHERE id = $10
+      RETURNING *
+    `, [first_name, last_name, phone, email, crew, van_number, employee_number, notes, is_active, technicianId]);
+
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Technician not found' });
+    }
+
+    await client.query('COMMIT');
+
+    console.log(`✅ Technician updated successfully: ID ${technicianId}`);
+    res.json(result.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Update technician error:', error);
+
+    if (error.code === '23505') {
+      return res.status(400).json({ error: 'Employee number already exists' });
+    }
+
+    res.status(500).json({ error: 'Failed to update technician' });
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * @route DELETE /api/technicians/:id
+ * @description Soft deletes a technician (sets is_active to false)
+ * @returns {Object} Success message
+ */
+app.delete('/api/technicians/:id', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const technicianId = req.params.id;
+
+    console.log(`👨‍🔧 Deactivating technician ID: ${technicianId}`);
+
+    const result = await client.query(`
+      UPDATE technicians
+      SET is_active = false, updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+    `, [technicianId]);
+
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Technician not found' });
+    }
+
+    await client.query('COMMIT');
+
+    console.log(`✅ Technician deactivated successfully: ID ${technicianId}`);
+    res.json({ message: 'Technician deactivated successfully', technician: result.rows[0] });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Delete technician error:', error);
+    res.status(500).json({ error: 'Failed to delete technician' });
+  } finally {
+    client.release();
+  }
+});
+
 // ================================
 // EQUIPMENT ROUTES
 // ================================
