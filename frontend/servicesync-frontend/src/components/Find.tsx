@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Search,
   FileText,
@@ -7,7 +6,6 @@ import {
   Package,
   ShoppingCart,
   Sparkles,
-  ExternalLink,
   MapPin,
   Calendar,
   DollarSign,
@@ -82,7 +80,6 @@ type SearchType = 'all' | 'work_orders' | 'customers' | 'inventory' | 'purchase_
 // ================================
 
 const Find: React.FC = () => {
-  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchType, setSearchType] = useState<SearchType>('all');
   const [results, setResults] = useState<SearchResults>({
@@ -506,22 +503,12 @@ const Find: React.FC = () => {
               {results.workOrders.map((wo) => (
                 <div
                   key={wo.id}
-                  onClick={() => navigate(`/work-orders/${wo.id}`)}
                   style={{
                     backgroundColor: 'white',
                     borderRadius: '0.5rem',
                     padding: '1rem',
-                    cursor: 'pointer',
                     border: '1px solid #e5e7eb',
                     transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = '#6366f1';
-                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = '#e5e7eb';
-                    e.currentTarget.style.boxShadow = 'none';
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.5rem' }}>
@@ -544,7 +531,6 @@ const Find: React.FC = () => {
                         {wo.status}
                       </span>
                     </div>
-                    <ExternalLink style={{ width: '1rem', height: '1rem', color: '#9ca3af' }} />
                   </div>
 
                   <div style={{ fontSize: '0.875rem', color: '#4b5563', marginBottom: '0.5rem' }}>
@@ -604,22 +590,12 @@ const Find: React.FC = () => {
               {results.customers.map((customer) => (
                 <div
                   key={customer.id}
-                  onClick={() => navigate(`/customers/${customer.id}`)}
                   style={{
                     backgroundColor: 'white',
                     borderRadius: '0.5rem',
                     padding: '1rem',
-                    cursor: 'pointer',
                     border: '1px solid #e5e7eb',
                     transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = '#6366f1';
-                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = '#e5e7eb';
-                    e.currentTarget.style.boxShadow = 'none';
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.5rem' }}>
@@ -639,7 +615,6 @@ const Find: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    <ExternalLink style={{ width: '1rem', height: '1rem', color: '#9ca3af' }} />
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem', fontSize: '0.75rem', color: '#6b7280' }}>
