@@ -3,10 +3,12 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import io from 'socket.io-client';
-import type { Socket } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 
 const SOCKET_URL = process.env.REACT_APP_API_BASE || 'http://localhost:5000';
+
+// Socket type from socket.io-client
+type SocketType = ReturnType<typeof io>;
 
 interface Viewer {
   userId: number;
@@ -32,7 +34,7 @@ interface FieldUpdate {
 
 export function useCollaboration(workOrderId: number | null) {
   const { user } = useAuth();
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const [socket, setSocket] = useState<SocketType | null>(null);
   const [viewers, setViewers] = useState<Viewer[]>([]);
   const [typingIndicators, setTypingIndicators] = useState<TypingIndicator>({});
   const [fieldUpdates, setFieldUpdates] = useState<FieldUpdate[]>([]);
