@@ -43,5 +43,9 @@
 \echo 'Applying multi-day scheduling schema...'
 \ir multi-day-scheduling-schema.sql
 
+-- 8. Invoicing and QuickBooks integration
+\echo 'Applying invoicing schema...'
+\ir invoicing-schema.sql
+
 \echo 'Schema initialization complete!'
 \echo 'You can now start the ServiceSync server.'

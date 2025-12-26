@@ -6236,6 +6236,333 @@ app.post('/api/work-orders/:id/generate-invoice', async (req, res) => {
   }
 });
 
+/**
+ * @route GET /api/invoices/:id
+ * @description Get invoice details with line items and payments
+ */
+app.get('/api/invoices/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get invoice header
+    const invoiceResult = await pool.query(`
+      SELECT i.*, c.name as customer_name, c.customer_number, c.email as customer_email,
+             w.wo_number, w.scheduled_date as work_order_date
+      FROM invoices i
+      LEFT JOIN customers c ON i.customer_id = c.id
+      LEFT JOIN work_orders w ON i.work_order_id = w.id
+      WHERE i.id = $1
+    `, [id]);
+
+    if (invoiceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    const invoice = invoiceResult.rows[0];
+
+    // Get line items
+    const lineItemsResult = await pool.query(`
+      SELECT * FROM invoice_line_items
+      WHERE invoice_id = $1
+      ORDER BY line_number
+    `, [id]);
+
+    invoice.line_items = lineItemsResult.rows;
+
+    // Get payments
+    const paymentsResult = await pool.query(`
+      SELECT * FROM invoice_payments
+      WHERE invoice_id = $1
+      ORDER BY payment_date DESC
+    `, [id]);
+
+    invoice.payments = paymentsResult.rows;
+
+    res.json(invoice);
+  } catch (error) {
+    console.error('Error fetching invoice:', error);
+    res.status(500).json({ error: 'Failed to fetch invoice details' });
+  }
+});
+
+/**
+ * @route POST /api/invoices
+ * @description Create a new invoice manually
+ */
+app.post('/api/invoices', async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const {
+      customer_id,
+      work_order_id,
+      due_date,
+      terms,
+      tax_rate,
+      notes,
+      line_items
+    } = req.body;
+
+    // Get customer info for denormalized fields
+    const customerResult = await client.query(`
+      SELECT name, service_address, service_city, service_state, service_zip, email, phone
+      FROM customers WHERE id = $1
+    `, [customer_id]);
+
+    if (customerResult.rows.length === 0) {
+      throw new Error('Customer not found');
+    }
+
+    const customer = customerResult.rows[0];
+
+    // Create invoice
+    const invoiceResult = await client.query(`
+      INSERT INTO invoices (
+        customer_id, work_order_id, due_date, terms, tax_rate, notes,
+        bill_to_name, bill_to_address, bill_to_city, bill_to_state, bill_to_zip,
+        bill_to_email, bill_to_phone
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      RETURNING *
+    `, [
+      customer_id, work_order_id, due_date, terms || 'Net 30', tax_rate || 0, notes,
+      customer.name, customer.service_address, customer.service_city,
+      customer.service_state, customer.service_zip, customer.email, customer.phone
+    ]);
+
+    const invoice = invoiceResult.rows[0];
+
+    // Add line items if provided
+    if (line_items && line_items.length > 0) {
+      for (let i = 0; i < line_items.length; i++) {
+        const item = line_items[i];
+        const itemTaxAmount = item.is_taxable ? (item.line_total * (tax_rate || 0) / 100) : 0;
+
+        await client.query(`
+          INSERT INTO invoice_line_items (
+            invoice_id, line_number, item_type, description,
+            quantity, unit_price, line_total, is_taxable, tax_rate, tax_amount
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `, [
+          invoice.id, i + 1, item.item_type, item.description,
+          item.quantity, item.unit_price, item.line_total,
+          item.is_taxable !== false, tax_rate || 0, itemTaxAmount
+        ]);
+      }
+    }
+
+    await client.query('COMMIT');
+
+    // Fetch complete invoice
+    const completeInvoice = await pool.query(`
+      SELECT i.*, c.name as customer_name
+      FROM invoices i
+      LEFT JOIN customers c ON i.customer_id = c.id
+      WHERE i.id = $1
+    `, [invoice.id]);
+
+    res.status(201).json(completeInvoice.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error creating invoice:', error);
+    res.status(500).json({ error: error.message || 'Failed to create invoice' });
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * @route PUT /api/invoices/:id
+ * @description Update invoice
+ */
+app.put('/api/invoices/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { due_date, terms, notes, discount_amount, status } = req.body;
+
+    const result = await pool.query(`
+      UPDATE invoices
+      SET
+        due_date = COALESCE($1, due_date),
+        terms = COALESCE($2, terms),
+        notes = COALESCE($3, notes),
+        discount_amount = COALESCE($4, discount_amount),
+        status = COALESCE($5, status),
+        updated_at = NOW()
+      WHERE id = $6
+      RETURNING *
+    `, [due_date, terms, notes, discount_amount, status, id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating invoice:', error);
+    res.status(500).json({ error: 'Failed to update invoice' });
+  }
+});
+
+/**
+ * @route POST /api/invoices/:id/payments
+ * @description Add payment to invoice
+ */
+app.post('/api/invoices/:id/payments', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount, payment_method, payment_date, reference_number, notes } = req.body;
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: 'Valid payment amount is required' });
+    }
+
+    if (!payment_method) {
+      return res.status(400).json({ error: 'Payment method is required' });
+    }
+
+    const result = await pool.query(`
+      INSERT INTO invoice_payments (
+        invoice_id, amount, payment_method, payment_date, reference_number, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+    `, [id, amount, payment_method, payment_date || new Date(), reference_number, notes]);
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error adding payment:', error);
+    res.status(500).json({ error: 'Failed to add payment' });
+  }
+});
+
+/**
+ * @route GET /api/invoices/:id/payments
+ * @description Get all payments for an invoice
+ */
+app.get('/api/invoices/:id/payments', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(`
+      SELECT * FROM invoice_payments
+      WHERE invoice_id = $1
+      ORDER BY payment_date DESC
+    `, [id]);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching payments:', error);
+    res.status(500).json({ error: 'Failed to fetch payments' });
+  }
+});
+
+/**
+ * @route PUT /api/invoices/:id/status
+ * @description Update invoice status
+ */
+app.put('/api/invoices/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const validStatuses = ['Draft', 'Pending', 'Sent', 'Paid', 'Partial', 'Overdue', 'Void', 'Cancelled'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    const result = await pool.query(`
+      UPDATE invoices
+      SET status = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING *
+    `, [status, id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating invoice status:', error);
+    res.status(500).json({ error: 'Failed to update invoice status' });
+  }
+});
+
+/**
+ * @route POST /api/invoices/:id/quickbooks-export
+ * @description Export invoice to QuickBooks (placeholder for integration)
+ */
+app.post('/api/invoices/:id/quickbooks-export', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get invoice with all details
+    const invoiceResult = await pool.query(`
+      SELECT i.*, c.name as customer_name, c.customer_number
+      FROM invoices i
+      LEFT JOIN customers c ON i.customer_id = c.id
+      WHERE i.id = $1
+    `, [id]);
+
+    if (invoiceResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    const invoice = invoiceResult.rows[0];
+
+    // Get line items
+    const lineItemsResult = await pool.query(`
+      SELECT * FROM invoice_line_items
+      WHERE invoice_id = $1
+      ORDER BY line_number
+    `, [id]);
+
+    // TODO: Implement QuickBooks API integration
+    // For now, just return a structured payload that would be sent to QuickBooks
+
+    const quickbooksPayload = {
+      Invoice: {
+        CustomerRef: {
+          value: invoice.customer_id,
+          name: invoice.customer_name
+        },
+        Line: lineItemsResult.rows.map(item => ({
+          DetailType: 'SalesItemLineDetail',
+          Amount: item.line_total,
+          Description: item.description,
+          SalesItemLineDetail: {
+            Qty: item.quantity,
+            UnitPrice: item.unit_price,
+            TaxCodeRef: item.is_taxable ? { value: 'TAX' } : { value: 'NON' }
+          }
+        })),
+        DueDate: invoice.due_date,
+        TxnDate: invoice.invoice_date,
+        DocNumber: invoice.invoice_number,
+        PrivateNote: invoice.internal_notes,
+        CustomerMemo: { value: invoice.notes }
+      }
+    };
+
+    // Mark as export attempted
+    await pool.query(`
+      UPDATE invoices
+      SET sync_status = 'Not Synced', updated_at = NOW()
+      WHERE id = $1
+    `, [id]);
+
+    res.json({
+      message: 'QuickBooks export prepared (integration pending)',
+      payload: quickbooksPayload,
+      note: 'QuickBooks integration to be implemented'
+    });
+  } catch (error) {
+    console.error('Error preparing QuickBooks export:', error);
+    res.status(500).json({ error: 'Failed to prepare QuickBooks export' });
+  }
+});
+
 server.listen(PORT, () => {
   console.log('');
   console.log('🚀 ServiceSync Backend Server Started');
