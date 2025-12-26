@@ -5,13 +5,18 @@ import {
   Moon,
   Globe,
   Save,
-  User
+  User,
+  Link2
 } from 'lucide-react';
 
 const Settings: React.FC = () => {
   const [notifications, setNotifications] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
   const [language, setLanguage] = useState('en');
+
+  // Integration states
+  const [quickbooksConnected, setQuickbooksConnected] = useState(false);
+  const [teamsConnected, setTeamsConnected] = useState(false);
 
   const handleSave = () => {
     // TODO: Save settings to backend
@@ -205,6 +210,160 @@ const Settings: React.FC = () => {
           </div>
         </div>
 
+        {/* Integrations Section */}
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '0.75rem',
+          border: '1px solid #e5e7eb',
+          padding: '1.5rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+            <Link2 style={{ width: '1.25rem', height: '1.25rem', color: '#8B5CF6' }} />
+            <h2 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#1f2937', margin: 0 }}>
+              Integrations
+            </h2>
+          </div>
+          <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '1.5rem' }}>
+            Connect ServiceSync with your favorite tools and services
+          </p>
+
+          {/* QuickBooks Integration */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '1rem',
+            borderRadius: '0.5rem',
+            border: '1px solid #e5e7eb',
+            marginBottom: '1rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              {/* QuickBooks Logo Placeholder */}
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '0.5rem',
+                background: 'linear-gradient(135deg, #2CA01C 0%, #57B846 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                fontWeight: '700',
+                fontSize: '1.25rem'
+              }}>
+                QB
+              </div>
+              <div>
+                <p style={{ fontSize: '0.875rem', fontWeight: '600', color: '#1f2937', margin: 0 }}>
+                  QuickBooks
+                </p>
+                <p style={{ fontSize: '0.75rem', color: '#6b7280', margin: 0 }}>
+                  Sync invoices and accounting data
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setQuickbooksConnected(!quickbooksConnected)}
+              style={{
+                position: 'relative',
+                width: '52px',
+                height: '28px',
+                backgroundColor: quickbooksConnected ? '#8B5CF6' : '#d1d5db',
+                borderRadius: '9999px',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s'
+              }}
+            >
+              <div style={{
+                position: 'absolute',
+                top: '2px',
+                left: quickbooksConnected ? '26px' : '2px',
+                width: '24px',
+                height: '24px',
+                backgroundColor: 'white',
+                borderRadius: '50%',
+                transition: 'left 0.2s',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+              }} />
+            </button>
+          </div>
+
+          {/* Microsoft Teams Integration */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '1rem',
+            borderRadius: '0.5rem',
+            border: '1px solid #e5e7eb',
+            marginBottom: '1rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              {/* Teams Logo Placeholder */}
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '0.5rem',
+                background: 'linear-gradient(135deg, #464EB8 0%, #5B67D1 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                fontWeight: '700',
+                fontSize: '1.25rem'
+              }}>
+                T
+              </div>
+              <div>
+                <p style={{ fontSize: '0.875rem', fontWeight: '600', color: '#1f2937', margin: 0 }}>
+                  Microsoft Teams
+                </p>
+                <p style={{ fontSize: '0.75rem', color: '#6b7280', margin: 0 }}>
+                  Send notifications and updates
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setTeamsConnected(!teamsConnected)}
+              style={{
+                position: 'relative',
+                width: '52px',
+                height: '28px',
+                backgroundColor: teamsConnected ? '#8B5CF6' : '#d1d5db',
+                borderRadius: '9999px',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s'
+              }}
+            >
+              <div style={{
+                position: 'absolute',
+                top: '2px',
+                left: teamsConnected ? '26px' : '2px',
+                width: '24px',
+                height: '24px',
+                backgroundColor: 'white',
+                borderRadius: '50%',
+                transition: 'left 0.2s',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+              }} />
+            </button>
+          </div>
+
+          {/* Coming Soon Placeholder */}
+          <div style={{
+            padding: '1rem',
+            borderRadius: '0.5rem',
+            border: '2px dashed #e5e7eb',
+            textAlign: 'center',
+            color: '#9ca3af',
+            fontSize: '0.875rem'
+          }}>
+            More integrations coming soon...
+          </div>
+        </div>
+
         {/* Save Button */}
         <div style={{
           display: 'flex',
@@ -218,13 +377,14 @@ const Settings: React.FC = () => {
               alignItems: 'center',
               gap: '0.5rem',
               padding: '0.75rem 1.5rem',
-              backgroundColor: '#6366f1',
+              background: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
               color: 'white',
               border: 'none',
               borderRadius: '0.5rem',
               cursor: 'pointer',
               fontSize: '0.875rem',
-              fontWeight: '600'
+              fontWeight: '600',
+              boxShadow: '0 4px 6px rgba(139, 92, 246, 0.3)'
             }}
           >
             <Save style={{ width: '1rem', height: '1rem' }} />

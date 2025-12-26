@@ -11,7 +11,10 @@ import {
   Eye,
   EyeOff,
   Lock,
-  AlertCircle
+  AlertCircle,
+  Wrench,
+  Upload,
+  Camera
 } from 'lucide-react';
 
 // ================================
@@ -41,12 +44,25 @@ interface QueuePermission {
   can_view: boolean;
 }
 
+interface Technician {
+  id: number;
+  tech_id: number;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  crew: string;
+  van_number: string;
+  skills: string[];
+  profile_image?: string;
+  current_location?: string;
+}
+
 // ================================
 // MAIN COMPONENT
 // ================================
 
 const Admin: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'users' | 'permissions'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'permissions' | 'technicians'>('users');
   const [users, setUsers] = useState<User[]>([]);
   const [queues, setQueues] = useState<Queue[]>([]);
   const [permissions, setPermissions] = useState<QueuePermission[]>([]);
@@ -55,6 +71,11 @@ const Admin: React.FC = () => {
   const [showNewUserModal, setShowNewUserModal] = useState(false);
   const [selectedUserForPermissions, setSelectedUserForPermissions] = useState<number | null>(null);
 
+  // Technician management state
+  const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [showNewTechModal, setShowNewTechModal] = useState(false);
+  const [editingTech, setEditingTech] = useState<number | null>(null);
+
   // New user form state
   const [newUser, setNewUser] = useState({
     employee_number: '',
@@ -62,6 +83,17 @@ const Admin: React.FC = () => {
     first_name: '',
     last_name: '',
     role: 'technician'
+  });
+
+  // New technician form state
+  const [newTech, setNewTech] = useState({
+    first_name: '',
+    last_name: '',
+    phone: '',
+    crew: '',
+    van_number: '',
+    skills: '',
+    profile_image: ''
   });
 
   // Load users
@@ -103,10 +135,24 @@ const Admin: React.FC = () => {
     }
   };
 
+  // Load technicians
+  const loadTechnicians = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/technicians');
+      if (response.ok) {
+        const data = await response.json();
+        setTechnicians(data);
+      }
+    } catch (error) {
+      console.error('Failed to load technicians:', error);
+    }
+  };
+
   useEffect(() => {
     loadUsers();
     loadQueues();
     loadPermissions();
+    loadTechnicians();
   }, []);
 
   // Handle create new user
@@ -468,6 +514,181 @@ const Admin: React.FC = () => {
   );
 
   // ================================
+  // RENDER: TECHNICIANS TAB
+  // ================================
+
+  const renderTechniciansTab = () => (
+    <div>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+        <div>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#1f2937', margin: 0, marginBottom: '0.5rem' }}>
+            Technician Management
+          </h2>
+          <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: 0 }}>
+            Manage dispatch board technicians, photos, and details
+          </p>
+        </div>
+        <button
+          onClick={() => setShowNewTechModal(true)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.75rem 1.25rem',
+            background: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '0.5rem',
+            cursor: 'pointer',
+            fontSize: '0.875rem',
+            fontWeight: '600'
+          }}
+        >
+          <Wrench style={{ width: '1rem', height: '1rem' }} />
+          Add Technician
+        </button>
+      </div>
+
+      {/* Technicians Grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+        gap: '1.5rem'
+      }}>
+        {technicians.map(tech => (
+          <div
+            key={tech.id}
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '0.75rem',
+              border: '2px solid #e5e7eb',
+              padding: '1.5rem',
+              transition: 'all 0.2s'
+            }}
+          >
+            {/* Technician Photo */}
+            <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+              {tech.profile_image ? (
+                <img
+                  src={tech.profile_image}
+                  alt={`${tech.first_name} ${tech.last_name}`}
+                  style={{
+                    width: '80px',
+                    height: '80px',
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: '3px solid #8B5CF6'
+                  }}
+                />
+              ) : (
+                <div style={{
+                  width: '80px',
+                  height: '80px',
+                  borderRadius: '50%',
+                  backgroundColor: '#f3f4f6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto',
+                  border: '3px solid #8B5CF6'
+                }}>
+                  <Camera style={{ width: '2rem', height: '2rem', color: '#9ca3af' }} />
+                </div>
+              )}
+            </div>
+
+            {/* Tech Info */}
+            <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#1f2937', textAlign: 'center', marginBottom: '0.5rem' }}>
+              {tech.first_name} {tech.last_name}
+            </h3>
+            <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '1rem' }}>
+              <p style={{ margin: '0.25rem 0' }}>📞 {tech.phone}</p>
+              <p style={{ margin: '0.25rem 0' }}>🚐 Van #{tech.van_number}</p>
+              <p style={{ margin: '0.25rem 0' }}>👥 Crew: {tech.crew}</p>
+              {tech.skills && tech.skills.length > 0 && (
+                <p style={{ margin: '0.25rem 0' }}>🛠️ {tech.skills.join(', ')}</p>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={() => {
+                  // Handle photo upload
+                  const input = document.createElement('input');
+                  input.type = 'file';
+                  input.accept = 'image/*';
+                  input.onchange = async (e: any) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      // TODO: Upload to server
+                      console.log('Upload photo for tech:', tech.id, file);
+                      alert('Photo upload feature coming soon!');
+                    }
+                  };
+                  input.click();
+                }}
+                style={{
+                  flex: 1,
+                  padding: '0.5rem',
+                  backgroundColor: '#f5f3ff',
+                  color: '#8B5CF6',
+                  border: '1px solid #8B5CF6',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer',
+                  fontSize: '0.75rem',
+                  fontWeight: '600'
+                }}
+              >
+                <Upload style={{ width: '0.875rem', height: '0.875rem', display: 'inline', marginRight: '0.25rem' }} />
+                Photo
+              </button>
+              <button
+                onClick={() => setEditingTech(tech.id)}
+                style={{
+                  flex: 1,
+                  padding: '0.5rem',
+                  backgroundColor: '#fffbeb',
+                  color: '#F59E0B',
+                  border: '1px solid #F59E0B',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer',
+                  fontSize: '0.75rem',
+                  fontWeight: '600'
+                }}
+              >
+                <Edit2 style={{ width: '0.875rem', height: '0.875rem', display: 'inline', marginRight: '0.25rem' }} />
+                Edit
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {/* Empty State */}
+        {technicians.length === 0 && (
+          <div style={{
+            gridColumn: '1 / -1',
+            textAlign: 'center',
+            padding: '3rem',
+            backgroundColor: 'white',
+            borderRadius: '0.75rem',
+            border: '2px dashed #e5e7eb'
+          }}>
+            <Wrench style={{ width: '3rem', height: '3rem', color: '#d1d5db', margin: '0 auto 1rem' }} />
+            <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#1f2937', marginBottom: '0.5rem' }}>
+              No technicians yet
+            </h3>
+            <p style={{ color: '#6b7280', marginBottom: '1rem' }}>
+              Add your first technician to the dispatch board
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // ================================
   // RENDER: NEW USER MODAL
   // ================================
 
@@ -729,6 +950,23 @@ const Admin: React.FC = () => {
             <Lock style={{ width: '1rem', height: '1rem', display: 'inline', marginRight: '0.5rem' }} />
             Queue Permissions
           </button>
+          <button
+            onClick={() => setActiveTab('technicians')}
+            style={{
+              padding: '0.75rem 1.5rem',
+              backgroundColor: 'transparent',
+              border: 'none',
+              borderBottom: activeTab === 'technicians' ? '2px solid #8B5CF6' : '2px solid transparent',
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+              fontWeight: '600',
+              color: activeTab === 'technicians' ? '#8B5CF6' : '#6b7280',
+              marginBottom: '-2px'
+            }}
+          >
+            <Wrench style={{ width: '1rem', height: '1rem', display: 'inline', marginRight: '0.5rem' }} />
+            Technicians
+          </button>
         </div>
       </div>
 
@@ -739,6 +977,7 @@ const Admin: React.FC = () => {
       }}>
         {activeTab === 'users' && renderUsersTab()}
         {activeTab === 'permissions' && renderPermissionsTab()}
+        {activeTab === 'technicians' && renderTechniciansTab()}
       </div>
 
       {/* Modals */}
