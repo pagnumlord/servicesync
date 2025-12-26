@@ -622,35 +622,21 @@ const Admin: React.FC = () => {
               transition: 'all 0.2s'
             }}
           >
-            {/* Technician Photo */}
+            {/* Technician Photo Placeholder */}
             <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
-              {tech.profile_image ? (
-                <img
-                  src={tech.profile_image}
-                  alt={`${tech.first_name} ${tech.last_name}`}
-                  style={{
-                    width: '80px',
-                    height: '80px',
-                    borderRadius: '50%',
-                    objectFit: 'cover',
-                    border: '3px solid #8B5CF6'
-                  }}
-                />
-              ) : (
-                <div style={{
-                  width: '80px',
-                  height: '80px',
-                  borderRadius: '50%',
-                  backgroundColor: '#f3f4f6',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto',
-                  border: '3px solid #8B5CF6'
-                }}>
-                  <Camera style={{ width: '2rem', height: '2rem', color: '#9ca3af' }} />
-                </div>
-              )}
+              <div style={{
+                width: '80px',
+                height: '80px',
+                borderRadius: '50%',
+                backgroundColor: '#f3f4f6',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto',
+                border: '3px solid #8B5CF6'
+              }}>
+                <Camera style={{ width: '2rem', height: '2rem', color: '#9ca3af' }} />
+              </div>
             </div>
 
             {/* Tech Info */}
@@ -658,11 +644,12 @@ const Admin: React.FC = () => {
               {tech.first_name} {tech.last_name}
             </h3>
             <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '1rem' }}>
-              <p style={{ margin: '0.25rem 0' }}>📞 {tech.phone}</p>
-              <p style={{ margin: '0.25rem 0' }}>🚐 Van #{tech.van_number}</p>
-              <p style={{ margin: '0.25rem 0' }}>👥 Crew: {tech.crew}</p>
-              {tech.skills && tech.skills.length > 0 && (
-                <p style={{ margin: '0.25rem 0' }}>🛠️ {tech.skills.join(', ')}</p>
+              <p style={{ margin: '0.25rem 0' }}>📞 {tech.phone || 'No phone'}</p>
+              <p style={{ margin: '0.25rem 0' }}>📧 {tech.email || 'No email'}</p>
+              <p style={{ margin: '0.25rem 0' }}>🚐 Van #{tech.van_number || 'N/A'}</p>
+              <p style={{ margin: '0.25rem 0' }}>👥 Crew: {tech.crew || 'Unassigned'}</p>
+              {tech.employee_number && (
+                <p style={{ margin: '0.25rem 0' }}>🆔 {tech.employee_number}</p>
               )}
             </div>
 
