@@ -62,19 +62,14 @@ function cleanCustomerData(row) {
   const customer = {
     name: row['Full Name']?.trim() || 'Unknown',
     customer_number: row['Customer #'] ? String(row['Customer #']).trim() : null,
-    service_address_line1: row['Address']?.trim() || null,
+    service_address: row['Address']?.trim() || null,
     service_city: row['City']?.trim() || null,
     service_state: row['State']?.trim() || null,
-    primary_contact_name: row['Contact']?.trim() || null,
     phone: formatPhone(row['Phone #']),
-    balance_due: parseFloat(row['Customer Balance']) || 0,
     zone: row['Location']?.trim() || null,
     is_active: true,
     created_at: parseDate(row['Opened'])
   };
-
-  // Set billing same as service by default
-  customer.billing_same_as_service = true;
 
   return customer;
 }
@@ -120,28 +115,22 @@ async function importCustomers(filePath) {
           INSERT INTO customers (
             name,
             customer_number,
-            service_address_line1,
+            service_address,
             service_city,
             service_state,
-            primary_contact_name,
             phone,
-            balance_due,
             zone,
-            billing_same_as_service,
             is_active,
             created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         `, [
           customer.name,
           customer.customer_number,
-          customer.service_address_line1,
+          customer.service_address,
           customer.service_city,
           customer.service_state,
-          customer.primary_contact_name,
           customer.phone,
-          customer.balance_due,
           customer.zone,
-          customer.billing_same_as_service,
           customer.is_active,
           customer.created_at || new Date()
         ]);
