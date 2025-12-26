@@ -132,14 +132,16 @@ function extractEquipmentType(callTypeStr) {
  * Clean and format work order data from Vision export
  */
 function cleanWorkOrderData(row) {
-  const woNumber = row['WO #'] || row['Work Order'] || row['WO Number'];
+  // Vision exports have these exact column names
+  const woNumber = row['Work Order'] || row['WO #'] || row['WO Number'];
   const customerName = row['Customer'] || row['Customer Name'];
-  const dateValue = row['Date'] || row['Service Date'] || row['Created'];
-  const callTypeRaw = row['Type'] || row['Call Type'] || row['Service Type'];
+  const dateValue = row['Date Entered'] || row['Date'] || row['Service Date'] || row['Created'];
+  const callTypeRaw = row['Problem'] || row['Type'] || row['Call Type'] || row['Service Type'];
   const status = row['Status'];
-  const amount = row['Amount'] || row['Total'] || 0;
-  const hours = row['Hours'] || row['Time'] || 0;
-  const description = row['Description'] || row['Notes'] || row['Problem'] || '';
+  const tech = row['Tech'];
+  const amount = row['WO Amt'] || row['Amount'] || row['Total'] || 0;
+  const hours = row['Act Hours'] || row['Hours'] || row['Time'] || 0;
+  const description = row['Problem'] || row['Description'] || row['Notes'] || '';
 
   const workOrder = {
     wo_number: woNumber ? String(woNumber).trim() : null,
@@ -200,6 +202,13 @@ async function importWorkOrders(filePath) {
     const rows = XLSX.utils.sheet_to_json(worksheet);
 
     console.log(`📊 Found ${rows.length} work orders in file\n`);
+
+    // Debug: Show first row columns
+    if (rows.length > 0) {
+      console.log('📋 Detected columns:', Object.keys(rows[0]).join(', '));
+      console.log('');
+    }
+
     console.log('─'.repeat(80));
 
     let imported = 0;
