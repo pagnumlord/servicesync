@@ -31,6 +31,7 @@ import Inventory from './components/Inventory';
 import Find from './components/Find';
 import Admin from './components/Admin';
 import Settings from './components/Settings';
+import Dashboard from './components/Dashboard';
 import Login from './components/Login';
 import Register from './components/Register';
 import { useAuth } from './context/AuthContext';
@@ -704,25 +705,6 @@ const handleNewWorkOrder = async (workOrderData: any) => {
               <Plus size={16} />
               New Work Order
             </button>
-
-            {currentView === 'dashboard' && (
-              <button
-                onClick={() => setShowWidgetSelector(true)}
-                style={{
-                  padding: '0.5rem',
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  borderRadius: '0.375rem',
-                  cursor: 'pointer',
-                  color: '#bfdbfe',
-                  transition: 'background-color 0.2s ease' // FANCY: Add transition
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)' }}
-              >
-                <SettingsIcon size={16} />
-              </button>
-            )}
           </div>
         </div>
       </header>
@@ -730,85 +712,7 @@ const handleNewWorkOrder = async (workOrderData: any) => {
       {/* MAIN CONTENT AREA */}
       <main style={{ padding: '2rem' }}>
         {currentView === 'dashboard' && (
-          <div>
-            {/* Dashboard Stats */}
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: '1.5rem', // FANCY: Increased gap
-              marginBottom: '3rem' // FANCY: Increased margin for better separation
-            }}>
-              {Object.entries(dashboardStats).slice(0, 4).map(([key, value]) => (
-                <div key={key} style={{
-                  backgroundColor: 'white',
-                  padding: '1.5rem',
-                  borderRadius: '0.75rem',
-                  border: '1px solid #e5e7eb', // FANCY: Use a subtle border instead of the dark one
-                  boxShadow: '0 4px 8px rgba(0, 0, 0, 0.05)' // FANCY: Light shadow for lift
-                }}>
-                  <div style={{ 
-                    fontSize: '2rem', 
-                    fontWeight: '700', 
-                    color: '#1f2937',
-                    marginBottom: '0.5rem'
-                  }}>
-                    {typeof value === 'number' ? (key.includes('revenue') ? `$${value.toLocaleString()}` : value) : value}
-                  </div>
-                  <div style={{ 
-                    fontSize: '0.875rem', 
-                    color: '#6b7280',
-                    textTransform: 'capitalize'
-                  }}>
-                    {key.replace(/_/g, ' ')}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Dashboard Widgets */}
-            <div style={{ 
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-              gap: '2rem'
-            }}>
-              {dashboardWidgets.map(widget => renderWidget(widget))}
-            </div>
-
-            {/* Empty State */}
-            {dashboardWidgets.length === 0 && (
-              <div style={{
-                backgroundColor: 'white',
-                borderRadius: '0.75rem',
-                padding: '3rem',
-                textAlign: 'center',
-                border: '1px solid #e5e7eb',
-                boxShadow: '0 4px 8px rgba(0, 0, 0, 0.05)' // FANCY: Light shadow for lift
-              }}>
-                <Grid3X3 size={48} style={{ color: '#d1d5db', margin: '0 auto 1rem' }} />
-                <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#1f2937', marginBottom: '0.5rem' }}>
-                  No widgets configured
-                </h3>
-                <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>
-                  Add widgets to customize your dashboard
-                </p>
-                <button
-                  onClick={() => setShowWidgetSelector(true)}
-                  style={{
-                    backgroundColor: '#3b82f6',
-                    color: 'white',
-                    padding: '0.75rem 1.5rem',
-                    border: 'none',
-                    borderRadius: '0.375rem',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem',
-                    fontWeight: '500'
-                  }}
-                >
-                  Add Widget
-                </button>
-              </div>
-            )}
-          </div>
+          <Dashboard onNavigate={setCurrentView} userId={auth.user?.id || 0} />
         )}
 
         {currentView === 'dispatch' && (
