@@ -26,6 +26,7 @@ import QueueBoard from './components/QueueBoard';
 import PurchaseOrderList from './components/PurchaseOrderList';
 import NewPurchaseOrderDialog from './components/NewPurchaseOrderDialog';
 import ReceivePODialog from './components/ReceivePODialog';
+import Tasks from './components/Tasks';
 import Login from './components/Login';
 import Register from './components/Register';
 import { useAuth } from './context/AuthContext';
@@ -804,22 +805,7 @@ const handleNewWorkOrder = async (workOrderData: any) => {
         )}
 
         {currentView === 'tasks' && (
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '0.75rem',
-            padding: '2rem',
-            border: '1px solid #e5e7eb',
-            boxShadow: '0 4px 8px rgba(0, 0, 0, 0.05)',
-            textAlign: 'center'
-          }}>
-            <CheckSquare size={48} style={{ color: '#d1d5db', margin: '0 auto 1rem' }} />
-            <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#1f2937', marginBottom: '0.5rem' }}>
-              Task Management
-            </h3>
-            <p style={{ color: '#6b7280' }}>
-              Task tracking and management coming soon
-            </p>
-          </div>
+          <Tasks />
         )}
 
         {currentView === 'inventory' && (

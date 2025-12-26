@@ -2460,6 +2460,9 @@ app.get('/api/auth/me', async (req, res) => {
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({ error: 'Invalid token' });
     }
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Token expired', expired: true });
+    }
     res.status(500).json({ error: 'Failed to get user info' });
   }
 });

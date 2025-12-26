@@ -82,7 +82,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       });
 
+      // Handle token expiration or invalid token
+      if (response.status === 401 || response.status === 403) {
+        console.warn('Token expired or invalid, logging out...');
+        logout();
+        throw new Error('Session expired');
+      }
+
       if (!response.ok) {
+        // Check if response body contains token expiration error
+        const errorText = await response.text();
+        if (errorText.includes('TokenExpiredError') || errorText.includes('jwt expired')) {
+          console.warn('Token expired, logging out...');
+          logout();
+          throw new Error('Session expired');
+        }
         throw new Error('Failed to fetch user data');
       }
 
