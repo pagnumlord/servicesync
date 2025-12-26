@@ -21,6 +21,47 @@ const ZONE_COLORS: Record<string, string> = {
   'F': '#EC4899'  // Pink - County
 };
 
+// Team/Crew colors for visual differentiation
+const CREW_COLORS: Record<string, string> = {
+  'Refrigeration': '#06B6D4',     // Cyan - Cool colors for refrigeration/HVAC
+  'HVAC': '#06B6D4',              // Cyan - Same as refrigeration
+  'Ice Machines': '#06B6D4',      // Cyan - Same as refrigeration
+  'Hot Side': '#F97316',          // Orange - Hot colors for plumbing/hot side
+  'Plumbing': '#F97316',          // Orange - Same as hot side
+  'PM': '#10B981',                // Green - PM/Preventative Maintenance
+  'PM Team': '#10B981',           // Green - Same as PM
+  'Project': '#8B5CF6',           // Purple - Projects
+  'Project Team': '#8B5CF6',      // Purple - Same as projects
+  'Training': '#6B7280',          // Gray - Training (not typically on dispatch)
+  'Unassigned': '#64748B'         // Slate - Default for unassigned crew
+};
+
+// Helper function to get crew color with fallback
+function getCrewColor(crew: string | undefined): string {
+  if (!crew) return CREW_COLORS['Unassigned'];
+
+  // Try exact match first
+  if (CREW_COLORS[crew]) return CREW_COLORS[crew];
+
+  // Try partial matches for flexibility
+  const crewLower = crew.toLowerCase();
+  if (crewLower.includes('refrigeration') || crewLower.includes('hvac') || crewLower.includes('ice')) {
+    return CREW_COLORS['Refrigeration'];
+  }
+  if (crewLower.includes('hot') || crewLower.includes('plumb')) {
+    return CREW_COLORS['Hot Side'];
+  }
+  if (crewLower.includes('pm') || crewLower.includes('preventative')) {
+    return CREW_COLORS['PM'];
+  }
+  if (crewLower.includes('project')) {
+    return CREW_COLORS['Project'];
+  }
+
+  // Default fallback
+  return CREW_COLORS['Unassigned'];
+}
+
 // Point-in-polygon algorithm to detect if a lat/lng is inside a zone
 function pointInPolygon(lat: number, lng: number, polygon: Array<{ lat: number; lng: number }>): boolean {
   if (polygon.length < 3) return false;
@@ -1310,19 +1351,21 @@ function TechnicianColumn({
         border: '1px solid #E5E7EB',
         boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
       }}>
-        <div 
+        <div
           style={{
             width: '32px',
             height: '32px',
             borderRadius: '50%',
-            backgroundColor: '#3B82F6',
+            backgroundColor: getCrewColor(technician.crew),
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: 'white',
             fontWeight: '600',
-            fontSize: '0.75rem'
+            fontSize: '0.75rem',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
           }}
+          title={`${technician.crew || 'Unassigned'} Team`}
         >
           {technician.first_name[0]}{technician.last_name[0]}
         </div>
