@@ -192,6 +192,56 @@ const Admin: React.FC = () => {
     }
   };
 
+  // Handle create new technician
+  const handleCreateTechnician = async () => {
+    if (!newTech.first_name || !newTech.last_name || !newTech.phone) {
+      alert('Please fill in required fields (name and phone)');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const techData = {
+        first_name: newTech.first_name,
+        last_name: newTech.last_name,
+        phone: newTech.phone,
+        crew: newTech.crew || 'Unassigned',
+        van_number: newTech.van_number || '',
+        skills: newTech.skills ? newTech.skills.split(',').map(s => s.trim()) : [],
+        profile_image: newTech.profile_image || null
+      };
+
+      const response = await fetch('http://localhost:5000/api/technicians', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(techData)
+      });
+
+      if (response.ok) {
+        await loadTechnicians();
+        setShowNewTechModal(false);
+        setNewTech({
+          first_name: '',
+          last_name: '',
+          phone: '',
+          crew: '',
+          van_number: '',
+          skills: '',
+          profile_image: ''
+        });
+        alert('Technician created successfully!');
+      } else {
+        const error = await response.json();
+        alert(`Failed to create technician: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Failed to create technician:', error);
+      alert('Failed to create technician');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Handle update user role
   const handleUpdateUserRole = async (userId: number, newRole: string) => {
     try {
@@ -874,6 +924,210 @@ const Admin: React.FC = () => {
   };
 
   // ================================
+  // RENDER: NEW TECHNICIAN MODAL
+  // ================================
+
+  const renderNewTechModal = () => {
+    if (!showNewTechModal) return null;
+
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000
+      }}>
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '0.75rem',
+          padding: '2rem',
+          width: '90%',
+          maxWidth: '500px',
+          maxHeight: '80vh',
+          overflowY: 'auto'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#1f2937', margin: 0 }}>
+              Add New Technician
+            </h3>
+            <button
+              onClick={() => setShowNewTechModal(false)}
+              style={{
+                padding: '0.5rem',
+                backgroundColor: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#6b7280'
+              }}
+            >
+              <X style={{ width: '1.25rem', height: '1.25rem' }} />
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
+                First Name *
+              </label>
+              <input
+                type="text"
+                value={newTech.first_name}
+                onChange={(e) => setNewTech({ ...newTech, first_name: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.875rem'
+                }}
+                placeholder="John"
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
+                Last Name *
+              </label>
+              <input
+                type="text"
+                value={newTech.last_name}
+                onChange={(e) => setNewTech({ ...newTech, last_name: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.875rem'
+                }}
+                placeholder="Smith"
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
+                Phone *
+              </label>
+              <input
+                type="tel"
+                value={newTech.phone}
+                onChange={(e) => setNewTech({ ...newTech, phone: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.875rem'
+                }}
+                placeholder="(555) 123-4567"
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
+                Van Number
+              </label>
+              <input
+                type="text"
+                value={newTech.van_number}
+                onChange={(e) => setNewTech({ ...newTech, van_number: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.875rem'
+                }}
+                placeholder="V-101"
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
+                Crew
+              </label>
+              <input
+                type="text"
+                value={newTech.crew}
+                onChange={(e) => setNewTech({ ...newTech, crew: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.875rem'
+                }}
+                placeholder="A-Team"
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
+                Skills (comma-separated)
+              </label>
+              <input
+                type="text"
+                value={newTech.skills}
+                onChange={(e) => setNewTech({ ...newTech, skills: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.875rem'
+                }}
+                placeholder="HVAC, Refrigeration, Plumbing"
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
+            <button
+              onClick={handleCreateTechnician}
+              disabled={loading}
+              style={{
+                flex: 1,
+                padding: '0.75rem',
+                background: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0.5rem',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                fontSize: '0.875rem',
+                fontWeight: '600',
+                opacity: loading ? 0.5 : 1
+              }}
+            >
+              {loading ? 'Creating...' : 'Create Technician'}
+            </button>
+            <button
+              onClick={() => setShowNewTechModal(false)}
+              style={{
+                flex: 1,
+                padding: '0.75rem',
+                backgroundColor: '#f3f4f6',
+                color: '#374151',
+                border: 'none',
+                borderRadius: '0.5rem',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontWeight: '600'
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ================================
   // MAIN RENDER
   // ================================
 
@@ -982,6 +1236,7 @@ const Admin: React.FC = () => {
 
       {/* Modals */}
       {renderNewUserModal()}
+      {renderNewTechModal()}
     </div>
   );
 };
