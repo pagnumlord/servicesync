@@ -22,13 +22,16 @@ import {
   Receipt,
   ShoppingCart,
   Paperclip,
-  Map
+  Map,
+  Eye,
+  Users
 } from 'lucide-react';
 import { WorkOrder } from '../types';
 import RegisterTab from './RegisterTab';
 import PurchasingTab from './PurchasingTab';
 import AttachmentsTab from './AttachmentsTab';
 import AssignmentsTab from './AssignmentsTab';
+import { useCollaboration } from '../hooks/useCollaboration';
 
 interface WorkOrderDetailsProps {
   workOrder: WorkOrder;
@@ -47,9 +50,28 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
   const [editedWorkOrder, setEditedWorkOrder] = useState<WorkOrder>(workOrder);
   const [activeTab, setActiveTab] = useState<'customer' | 'general' | 'register' | 'purchasing' | 'attachments' | 'assignments'>('general');
 
+  // Real-time collaboration
+  const {
+    viewers,
+    typingIndicators,
+    fieldUpdates,
+    startTyping,
+    stopTyping,
+    broadcastFieldChange,
+    isConnected
+  } = useCollaboration(workOrder.id);
+
   useEffect(() => {
     setEditedWorkOrder(workOrder);
   }, [workOrder]);
+
+  // Handle incoming field updates from other users
+  useEffect(() => {
+    if (fieldUpdates.length > 0) {
+      const latestUpdate = fieldUpdates[fieldUpdates.length - 1];
+      console.log(`📝 ${latestUpdate.userName} updated ${latestUpdate.fieldName}:`, latestUpdate.value);
+    }
+  }, [fieldUpdates]);
 
   if (!isOpen) return null;
 
@@ -110,6 +132,18 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
       zIndex: 1000,
       padding: '1rem'
     }}>
+      <style>{`
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 0.5;
+            transform: scale(1.2);
+          }
+        }
+      `}</style>
       <div style={{
         backgroundColor: 'white',
         borderRadius: '1rem',
@@ -130,7 +164,7 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
           alignItems: 'center',
           backgroundColor: '#F9FAFB'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
             <div>
               <h2 style={{
                 margin: 0,
@@ -149,7 +183,31 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
                 {workOrder.customer_name}
               </p>
             </div>
-            
+
+            {/* Real-time Viewers */}
+            {viewers.length > 0 && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.5rem 0.75rem',
+                backgroundColor: '#EEF2FF',
+                borderRadius: '0.5rem',
+                border: '1px solid #C7D2FE'
+              }}>
+                <Eye size={16} style={{ color: '#6366F1' }} />
+                <div style={{
+                  fontSize: '0.75rem',
+                  color: '#4F46E5',
+                  fontWeight: '600'
+                }}>
+                  {viewers.length === 1
+                    ? `${viewers[0].name} is viewing`
+                    : `${viewers.length} people viewing`}
+                </div>
+              </div>
+            )}
+
             {/* Urgency Badge */}
             {workOrder.call_urgency && workOrder.call_urgency !== 'Default' && (
               <div style={{
@@ -545,18 +603,51 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
                       marginBottom: '0.75rem',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '0.5rem'
+                      gap: '0.5rem',
+                      justifyContent: 'space-between'
                     }}>
-                      <FileText size={16} style={{ color: '#6B7280' }} />
-                      Problem Description
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <FileText size={16} style={{ color: '#6B7280' }} />
+                        Problem Description
+                      </div>
+                      {/* Typing Indicator */}
+                      {typingIndicators['problem_description'] && (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.375rem',
+                          padding: '0.25rem 0.625rem',
+                          backgroundColor: '#FEF3C7',
+                          borderRadius: '0.375rem',
+                          fontSize: '0.75rem',
+                          color: '#92400E',
+                          fontWeight: '500'
+                        }}>
+                          <div style={{
+                            width: '6px',
+                            height: '6px',
+                            borderRadius: '50%',
+                            backgroundColor: '#F59E0B',
+                            animation: 'pulse 1.5s ease-in-out infinite'
+                          }} />
+                          {typingIndicators['problem_description'].userName} is typing...
+                        </div>
+                      )}
                     </div>
                     {isEditing ? (
                       <textarea
                         value={editedWorkOrder.problem_description || ''}
-                        onChange={(e) => setEditedWorkOrder({
-                          ...editedWorkOrder,
-                          problem_description: e.target.value
-                        })}
+                        onChange={(e) => {
+                          setEditedWorkOrder({
+                            ...editedWorkOrder,
+                            problem_description: e.target.value
+                          });
+                          startTyping('problem_description');
+                        }}
+                        onBlur={() => {
+                          stopTyping('problem_description');
+                          broadcastFieldChange('problem_description', editedWorkOrder.problem_description);
+                        }}
                         style={{
                           width: '100%',
                           backgroundColor: 'white',

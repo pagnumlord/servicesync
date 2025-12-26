@@ -12,6 +12,7 @@ const fs = require('fs').promises;
 const http = require('http');
 const socketIo = require('socket.io');
 const cron = require('node-cron');
+const CollaborationManager = require('./realtime-collaboration');
 require('dotenv').config();
 
 const app = express();
@@ -42,6 +43,14 @@ const io = socketIo(server, {
     credentials: true
   }
 });
+
+// Initialize collaboration manager
+const collaborationManager = new CollaborationManager();
+
+// Clean up stale typing indicators every 3 seconds
+setInterval(() => {
+  collaborationManager.cleanupStaleTyping();
+}, 3000);
 
 // Middleware
 app.use(cors());
@@ -5178,7 +5187,110 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('🔌 Client disconnected:', socket.id);
+
+    // Handle collaboration cleanup when user disconnects
+    const result = collaborationManager.leaveWorkOrder(socket.id);
+    if (result && result.workOrderId) {
+      // Notify others that this user left
+      socket.to(`wo_${result.workOrderId}`).emit('viewersUpdate', {
+        workOrderId: result.workOrderId,
+        viewers: result.viewers
+      });
+    }
   });
+
+  // ========================================
+  // COLLABORATION EVENTS
+  // ========================================
+
+  // User joins a work order view
+  socket.on('joinWorkOrder', ({ workOrderId, userId, userName }) => {
+    // Join the work order room
+    socket.join(`wo_${workOrderId}`);
+
+    // Register with collaboration manager
+    const viewers = collaborationManager.joinWorkOrder(socket.id, workOrderId, userId, userName);
+
+    // Notify the joiner of current viewers
+    socket.emit('viewersUpdate', {
+      workOrderId,
+      viewers
+    });
+
+    // Notify others that someone joined
+    socket.to(`wo_${workOrderId}`).emit('viewersUpdate', {
+      workOrderId,
+      viewers
+    });
+
+    // Send current typing indicators to the new viewer
+    const typingIndicators = collaborationManager.getTypingIndicators(workOrderId);
+    socket.emit('typingIndicators', {
+      workOrderId,
+      indicators: typingIndicators
+    });
+  });
+
+  // User leaves a work order view
+  socket.on('leaveWorkOrder', ({ workOrderId }) => {
+    const result = collaborationManager.leaveWorkOrder(socket.id);
+
+    if (result && result.workOrderId) {
+      socket.leave(`wo_${result.workOrderId}`);
+
+      // Notify others
+      socket.to(`wo_${result.workOrderId}`).emit('viewersUpdate', {
+        workOrderId: result.workOrderId,
+        viewers: result.viewers
+      });
+    }
+  });
+
+  // User starts typing in a field
+  socket.on('startTyping', ({ workOrderId, fieldName }) => {
+    const typingInfo = collaborationManager.startTyping(socket.id, workOrderId, fieldName);
+
+    if (typingInfo) {
+      // Notify others (not the typer)
+      socket.to(`wo_${workOrderId}`).emit('userStartedTyping', {
+        workOrderId,
+        fieldName,
+        userId: typingInfo.userId,
+        userName: typingInfo.userName
+      });
+    }
+  });
+
+  // User stops typing in a field
+  socket.on('stopTyping', ({ workOrderId, fieldName }) => {
+    collaborationManager.stopTyping(socket.id, workOrderId, fieldName);
+
+    // Notify others
+    socket.to(`wo_${workOrderId}`).emit('userStoppedTyping', {
+      workOrderId,
+      fieldName
+    });
+  });
+
+  // Field value changed (broadcast to others)
+  socket.on('fieldChanged', ({ workOrderId, fieldName, value, userId, userName }) => {
+    // Stop typing indicator for this field
+    collaborationManager.stopTyping(socket.id, workOrderId, fieldName);
+
+    // Broadcast the change to others viewing this work order
+    socket.to(`wo_${workOrderId}`).emit('fieldUpdated', {
+      workOrderId,
+      fieldName,
+      value,
+      userId,
+      userName,
+      timestamp: new Date()
+    });
+  });
+
+  // ========================================
+  // EXISTING EVENTS
+  // ========================================
 
   socket.on('workOrderCreated', (workOrder) => {
     console.log('📡 Broadcasting work order creation from client');
