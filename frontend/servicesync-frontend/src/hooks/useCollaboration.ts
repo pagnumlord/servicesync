@@ -2,7 +2,8 @@
 // Provides presence tracking, typing indicators, and live field updates
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { io, Socket } from 'socket.io-client';
+import io from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 
 const SOCKET_URL = process.env.REACT_APP_API_BASE || 'http://localhost:5000';
@@ -21,6 +22,7 @@ interface TypingIndicator {
 }
 
 interface FieldUpdate {
+  workOrderId: number;
   fieldName: string;
   value: any;
   userId: number;
@@ -65,7 +67,7 @@ export function useCollaboration(workOrderId: number | null) {
     socket.emit('joinWorkOrder', {
       workOrderId,
       userId: user.id,
-      userName: user.name
+      userName: `${user.firstName} ${user.lastName}`
     });
 
     console.log(`👀 Joined work order ${workOrderId} collaboration`);
@@ -207,7 +209,7 @@ export function useCollaboration(workOrderId: number | null) {
       fieldName,
       value,
       userId: user.id,
-      userName: user.name
+      userName: `${user.firstName} ${user.lastName}`
     });
   }, [socket, workOrderId, user]);
 
