@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Home, Search, Settings, Menu, MessageCircle, MapPin, CheckSquare,
+  Home, Search, Settings as SettingsIcon, Menu, MessageCircle, MapPin, CheckSquare,
   Users, Package, BarChart3, Plus, User, Bell, LogOut, Grid3X3,
   TrendingUp, Clock, AlertTriangle, DollarSign, Calendar, Wrench, ShoppingCart, Shield
 } from 'lucide-react';
@@ -574,7 +574,7 @@ const handleNewWorkOrder = async (workOrderData: any) => {
                     onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f3f4f6' }}
                     onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
                   >
-                    <Settings size={16} />
+                    <SettingsIcon size={16} />
                     Settings
                   </button>
 
@@ -720,7 +720,7 @@ const handleNewWorkOrder = async (workOrderData: any) => {
                 onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)' }}
                 onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)' }}
               >
-                <Settings size={16} />
+                <SettingsIcon size={16} />
               </button>
             )}
           </div>
