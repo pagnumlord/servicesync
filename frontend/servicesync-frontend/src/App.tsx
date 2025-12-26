@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Home, Search, Settings, Menu, MessageCircle, MapPin, CheckSquare,
   Users, Package, BarChart3, Plus, User, Bell, LogOut, Grid3X3,
-  TrendingUp, Clock, AlertTriangle, DollarSign, Calendar, Wrench, ShoppingCart
+  TrendingUp, Clock, AlertTriangle, DollarSign, Calendar, Wrench, ShoppingCart, Shield
 } from 'lucide-react';
 
 
@@ -29,6 +29,8 @@ import ReceivePODialog from './components/ReceivePODialog';
 import Tasks from './components/Tasks';
 import Inventory from './components/Inventory';
 import Find from './components/Find';
+import Admin from './components/Admin';
+import Settings from './components/Settings';
 import Login from './components/Login';
 import Register from './components/Register';
 import { useAuth } from './context/AuthContext';
@@ -234,6 +236,10 @@ const ServiceSync = () => {
 
     if (action === 'logout') {
       await auth.logout();
+    } else if (action === 'settings') {
+      setCurrentView('settings');
+    } else if (action === 'admin') {
+      setCurrentView('admin');
     }
   };
 
@@ -548,6 +554,56 @@ const handleNewWorkOrder = async (workOrderData: any) => {
                       {auth.user?.role} • Employee #{auth.user?.employeeNumber}
                     </p>
                   </div>
+
+                  <button
+                    onClick={() => handleUserMenuClick('settings')}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem 1rem',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '0.875rem',
+                      color: '#1f2937',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      transition: 'background-color 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f3f4f6' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
+                  >
+                    <Settings size={16} />
+                    Settings
+                  </button>
+
+                  {auth.user?.role === 'admin' && (
+                    <button
+                      onClick={() => handleUserMenuClick('admin')}
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem 1rem',
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '0.875rem',
+                        color: '#1f2937',
+                        textAlign: 'left',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        transition: 'background-color 0.2s ease',
+                        borderTop: '1px solid #e5e7eb'
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f3f4f6' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
+                    >
+                      <Shield size={16} />
+                      Admin
+                    </button>
+                  )}
+
                   <button
                     onClick={() => handleUserMenuClick('logout')}
                     style={{
@@ -562,7 +618,8 @@ const handleNewWorkOrder = async (workOrderData: any) => {
                       display: 'flex',
                       alignItems: 'center',
                       gap: '0.5rem',
-                      transition: 'background-color 0.2s ease'
+                      transition: 'background-color 0.2s ease',
+                      borderTop: '1px solid #e5e7eb'
                     }}
                     onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fee2e2' }}
                     onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
@@ -816,6 +873,14 @@ const handleNewWorkOrder = async (workOrderData: any) => {
               Advanced reporting and analytics coming soon
             </p>
           </div>
+        )}
+
+        {currentView === 'settings' && (
+          <Settings />
+        )}
+
+        {currentView === 'admin' && (
+          <Admin />
         )}
       </main>
       

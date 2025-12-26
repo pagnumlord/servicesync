@@ -481,6 +481,188 @@ app.get('/api/search', async (req, res) => {
 });
 
 // ================================
+// ADMIN ROUTES
+// ================================
+
+/**
+ * @route GET /api/admin/users
+ * @description Get all users for admin management
+ */
+app.get('/api/admin/users', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        id,
+        employee_number,
+        first_name,
+        last_name,
+        role,
+        is_active,
+        created_at
+      FROM users
+      ORDER BY last_name, first_name
+    `);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('❌ Error fetching users:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+/**
+ * @route POST /api/admin/users
+ * @description Create a new user
+ */
+app.post('/api/admin/users', async (req, res) => {
+  try {
+    const { employee_number, password, first_name, last_name, role } = req.body;
+
+    // Check if employee number already exists
+    const existing = await pool.query(
+      'SELECT id FROM users WHERE employee_number = $1',
+      [employee_number]
+    );
+
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ error: 'Employee number already exists' });
+    }
+
+    // Hash password
+    const bcrypt = require('bcrypt');
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create user
+    const result = await pool.query(`
+      INSERT INTO users (employee_number, password_hash, first_name, last_name, role, is_active)
+      VALUES ($1, $2, $3, $4, $5, true)
+      RETURNING id, employee_number, first_name, last_name, role, is_active, created_at
+    `, [employee_number, hashedPassword, first_name, last_name, role]);
+
+    console.log(`✅ User created: ${first_name} ${last_name} (${employee_number})`);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Error creating user:', error);
+    res.status(500).json({ error: 'Failed to create user' });
+  }
+});
+
+/**
+ * @route PUT /api/admin/users/:id/role
+ * @description Update user role
+ */
+app.put('/api/admin/users/:id/role', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role } = req.body;
+
+    const result = await pool.query(`
+      UPDATE users
+      SET role = $1
+      WHERE id = $2
+      RETURNING id, employee_number, first_name, last_name, role
+    `, [role, id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    console.log(`✅ User role updated: ${result.rows[0].first_name} ${result.rows[0].last_name} -> ${role}`);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Error updating user role:', error);
+    res.status(500).json({ error: 'Failed to update user role' });
+  }
+});
+
+/**
+ * @route PUT /api/admin/users/:id/status
+ * @description Toggle user active status
+ */
+app.put('/api/admin/users/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { is_active } = req.body;
+
+    const result = await pool.query(`
+      UPDATE users
+      SET is_active = $1
+      WHERE id = $2
+      RETURNING id, employee_number, first_name, last_name, is_active
+    `, [is_active, id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    console.log(`✅ User status updated: ${result.rows[0].first_name} ${result.rows[0].last_name} -> ${is_active ? 'Active' : 'Inactive'}`);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Error updating user status:', error);
+    res.status(500).json({ error: 'Failed to update user status' });
+  }
+});
+
+/**
+ * @route GET /api/admin/queue-permissions
+ * @description Get all queue permissions
+ */
+app.get('/api/admin/queue-permissions', async (req, res) => {
+  try {
+    // Check if table exists first
+    const tableExists = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = 'queue_permissions'
+      );
+    `);
+
+    if (!tableExists.rows[0].exists) {
+      // Return empty array if table doesn't exist yet
+      return res.json([]);
+    }
+
+    const result = await pool.query(`
+      SELECT
+        user_id,
+        queue_id,
+        can_view
+      FROM queue_permissions
+    `);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('❌ Error fetching queue permissions:', error);
+    res.json([]); // Return empty array on error
+  }
+});
+
+/**
+ * @route POST /api/admin/queue-permissions
+ * @description Update queue permission for a user
+ */
+app.post('/api/admin/queue-permissions', async (req, res) => {
+  try {
+    const { user_id, queue_id, can_view } = req.body;
+
+    // Upsert permission
+    const result = await pool.query(`
+      INSERT INTO queue_permissions (user_id, queue_id, can_view)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (user_id, queue_id)
+      DO UPDATE SET can_view = $3
+      RETURNING *
+    `, [user_id, queue_id, can_view]);
+
+    console.log(`✅ Queue permission updated: User ${user_id}, Queue ${queue_id} -> ${can_view ? 'Can view' : 'Cannot view'}`);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Error updating queue permission:', error);
+    res.status(500).json({ error: 'Failed to update queue permission' });
+  }
+});
+
+// ================================
 // CUSTOMER MANAGEMENT ROUTES
 // ================================
 
