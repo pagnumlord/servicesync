@@ -7030,6 +7030,248 @@ app.get('/api/inventory/stats', async (req, res) => {
   }
 });
 
+// ============================================
+// TASK MANAGEMENT ENDPOINTS
+// ============================================
+
+/**
+ * @route GET /api/tasks
+ * @description Get all tasks with optional filtering
+ */
+app.get('/api/tasks', async (req, res) => {
+  try {
+    const { status, category, priority, assigned_to_id } = req.query;
+
+    let query = 'SELECT * FROM tasks WHERE 1=1';
+    const params = [];
+    let paramCount = 1;
+
+    if (status && status !== 'all') {
+      query += ` AND status = $${paramCount}`;
+      params.push(status);
+      paramCount++;
+    }
+
+    if (category && category !== 'all') {
+      query += ` AND category = $${paramCount}`;
+      params.push(category);
+      paramCount++;
+    }
+
+    if (priority) {
+      query += ` AND priority = $${paramCount}`;
+      params.push(priority);
+      paramCount++;
+    }
+
+    if (assigned_to_id) {
+      query += ` AND assigned_to_id = $${paramCount}`;
+      params.push(assigned_to_id);
+      paramCount++;
+    }
+
+    query += ' ORDER BY created_at DESC';
+
+    const result = await pool.query(query, params);
+
+    // Get stats
+    const statsResult = await pool.query('SELECT * FROM task_stats');
+
+    res.json({
+      tasks: result.rows,
+      stats: statsResult.rows[0]
+    });
+  } catch (error) {
+    console.error('Error fetching tasks:', error);
+    res.status(500).json({ error: 'Failed to fetch tasks' });
+  }
+});
+
+/**
+ * @route GET /api/tasks/active
+ * @description Get active tasks (not completed or cancelled)
+ */
+app.get('/api/tasks/active', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM active_tasks');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching active tasks:', error);
+    res.status(500).json({ error: 'Failed to fetch active tasks' });
+  }
+});
+
+/**
+ * @route GET /api/tasks/:id
+ * @description Get single task by ID
+ */
+app.get('/api/tasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT * FROM tasks WHERE id = $1', [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching task:', error);
+    res.status(500).json({ error: 'Failed to fetch task' });
+  }
+});
+
+/**
+ * @route POST /api/tasks
+ * @description Create new task
+ */
+app.post('/api/tasks', async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      category,
+      priority,
+      status,
+      assigned_to_id,
+      assigned_to_name,
+      due_date,
+      notes
+    } = req.body;
+
+    if (!title) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+
+    const result = await pool.query(`
+      INSERT INTO tasks (
+        title,
+        description,
+        category,
+        priority,
+        status,
+        assigned_to_id,
+        assigned_to_name,
+        due_date,
+        notes,
+        created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *
+    `, [
+      title,
+      description,
+      category || 'Other',
+      priority || 'Medium',
+      status || 'Pending',
+      assigned_to_id,
+      assigned_to_name,
+      due_date,
+      notes,
+      req.user?.id || null
+    ]);
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating task:', error);
+    res.status(500).json({ error: 'Failed to create task' });
+  }
+});
+
+/**
+ * @route PUT /api/tasks/:id
+ * @description Update task
+ */
+app.put('/api/tasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      title,
+      description,
+      category,
+      priority,
+      status,
+      assigned_to_id,
+      assigned_to_name,
+      due_date,
+      notes
+    } = req.body;
+
+    const result = await pool.query(`
+      UPDATE tasks SET
+        title = COALESCE($1, title),
+        description = COALESCE($2, description),
+        category = COALESCE($3, category),
+        priority = COALESCE($4, priority),
+        status = COALESCE($5, status),
+        assigned_to_id = COALESCE($6, assigned_to_id),
+        assigned_to_name = COALESCE($7, assigned_to_name),
+        due_date = COALESCE($8, due_date),
+        notes = COALESCE($9, notes),
+        updated_at = NOW()
+      WHERE id = $10
+      RETURNING *
+    `, [
+      title,
+      description,
+      category,
+      priority,
+      status,
+      assigned_to_id,
+      assigned_to_name,
+      due_date,
+      notes,
+      id
+    ]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating task:', error);
+    res.status(500).json({ error: 'Failed to update task' });
+  }
+});
+
+/**
+ * @route DELETE /api/tasks/:id
+ * @description Delete task
+ */
+app.delete('/api/tasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      'DELETE FROM tasks WHERE id = $1 RETURNING *',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    res.json({ message: 'Task deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting task:', error);
+    res.status(500).json({ error: 'Failed to delete task' });
+  }
+});
+
+/**
+ * @route GET /api/tasks/stats
+ * @description Get task statistics
+ */
+app.get('/api/tasks/stats', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM task_stats');
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching task stats:', error);
+    res.status(500).json({ error: 'Failed to fetch task stats' });
+  }
+});
+
 server.listen(PORT, () => {
   console.log('');
   console.log('🚀 ServiceSync Backend Server Started');

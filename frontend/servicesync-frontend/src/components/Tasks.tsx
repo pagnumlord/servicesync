@@ -31,45 +31,71 @@ interface Task {
   notes?: string;
 }
 
+const API_BASE_URL = process.env.REACT_APP_API_BASE || 'http://localhost:5000/api';
+
 const Tasks: React.FC = () => {
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: 1,
-      title: 'Schedule van #3 oil change',
-      description: 'Van is due for 5000 mile oil change and inspection',
-      category: 'Maintenance',
-      priority: 'High',
-      status: 'Pending',
-      assigned_to_name: 'Karsten Allen',
-      due_date: '2025-12-28',
-      created_at: '2025-12-26T08:00:00Z'
-    },
-    {
-      id: 2,
-      title: 'Follow up with Johnson Industries quote',
-      description: 'Called about HVAC installation - quote expires next week',
-      category: 'Follow-up',
-      priority: 'Medium',
-      status: 'Pending',
-      due_date: '2025-12-27',
-      created_at: '2025-12-25T14:30:00Z'
-    },
-    {
-      id: 3,
-      title: 'Order new uniforms for technicians',
-      description: '3 new hires need uniforms - sizes: L, XL, M',
-      category: 'Administrative',
-      priority: 'Low',
-      status: 'In Progress',
-      assigned_to_name: 'Office Manager',
-      due_date: '2025-12-30',
-      created_at: '2025-12-24T10:00:00Z'
-    }
-  ]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<any>(null);
 
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
+
+  useEffect(() => {
+    fetchTasks();
+  }, [filterStatus, filterCategory]);
+
+  const fetchTasks = async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (filterStatus !== 'all') params.append('status', filterStatus);
+      if (filterCategory !== 'all') params.append('category', filterCategory);
+
+      const response = await fetch(`${API_BASE_URL}/tasks?${params}`);
+      const data = await response.json();
+
+      setTasks(data.tasks || []);
+      setStats(data.stats || null);
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateTask = async (taskId: number, updates: Partial<Task>) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+
+      if (response.ok) {
+        await fetchTasks();
+      }
+    } catch (error) {
+      console.error('Error updating task:', error);
+    }
+  };
+
+  const handleDeleteTask = async (taskId: number) => {
+    if (!window.confirm('Are you sure you want to delete this task?')) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        await fetchTasks();
+      }
+    } catch (error) {
+      console.error('Error deleting task:', error);
+    }
+  };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -107,16 +133,12 @@ const Tasks: React.FC = () => {
     return true;
   });
 
-  const taskStats = {
-    total: tasks.length,
-    pending: tasks.filter(t => t.status === 'Pending').length,
-    inProgress: tasks.filter(t => t.status === 'In Progress').length,
-    completed: tasks.filter(t => t.status === 'Completed').length,
-    overdue: tasks.filter(t =>
-      t.status !== 'Completed' &&
-      t.due_date &&
-      new Date(t.due_date) < new Date()
-    ).length
+  const taskStats = stats || {
+    total_tasks: 0,
+    pending_count: 0,
+    in_progress_count: 0,
+    completed_count: 0,
+    overdue_count: 0
   };
 
   return (
@@ -177,11 +199,11 @@ const Tasks: React.FC = () => {
         gap: '1rem',
         marginBottom: '2rem'
       }}>
-        <StatCard title="Total Tasks" value={taskStats.total} color="#7C3AED" />
-        <StatCard title="Pending" value={taskStats.pending} color="#3B82F6" />
-        <StatCard title="In Progress" value={taskStats.inProgress} color="#F59E0B" />
-        <StatCard title="Completed" value={taskStats.completed} color="#10B981" />
-        <StatCard title="Overdue" value={taskStats.overdue} color="#DC2626" />
+        <StatCard title="Total Tasks" value={taskStats.total_tasks} color="#7C3AED" />
+        <StatCard title="Pending" value={taskStats.pending_count} color="#3B82F6" />
+        <StatCard title="In Progress" value={taskStats.in_progress_count} color="#F59E0B" />
+        <StatCard title="Completed" value={taskStats.completed_count} color="#10B981" />
+        <StatCard title="Overdue" value={taskStats.overdue_count} color="#DC2626" />
       </div>
 
       {/* Filters */}
@@ -258,7 +280,15 @@ const Tasks: React.FC = () => {
         border: '1px solid #E5E7EB',
         overflow: 'hidden'
       }}>
-        {filteredTasks.length === 0 ? (
+        {loading ? (
+          <div style={{
+            padding: '3rem',
+            textAlign: 'center',
+            color: '#6B7280'
+          }}>
+            <p>Loading tasks...</p>
+          </div>
+        ) : filteredTasks.length === 0 ? (
           <div style={{
             padding: '3rem',
             textAlign: 'center',
@@ -270,7 +300,12 @@ const Tasks: React.FC = () => {
         ) : (
           <div style={{ padding: '1.5rem' }}>
             {filteredTasks.map(task => (
-              <TaskCard key={task.id} task={task} />
+              <TaskCard
+                key={task.id}
+                task={task}
+                onUpdate={handleUpdateTask}
+                onDelete={handleDeleteTask}
+              />
             ))}
           </div>
         )}
@@ -349,7 +384,11 @@ const StatCard: React.FC<{ title: string; value: number; color: string }> = ({ t
   </div>
 );
 
-const TaskCard: React.FC<{ task: Task }> = ({ task }) => {
+const TaskCard: React.FC<{
+  task: Task;
+  onUpdate: (taskId: number, updates: Partial<Task>) => void;
+  onDelete: (taskId: number) => void;
+}> = ({ task, onUpdate, onDelete }) => {
   const isOverdue = task.status !== 'Completed' && task.due_date && new Date(task.due_date) < new Date();
 
   return (

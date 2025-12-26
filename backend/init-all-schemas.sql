@@ -51,5 +51,9 @@
 \echo 'Applying invoicing schema...'
 \ir invoicing-schema.sql
 
+-- 10. Internal task management
+\echo 'Applying tasks schema...'
+\ir tasks-schema.sql
+
 \echo 'Schema initialization complete!'
 \echo 'You can now start the ServiceSync server.'
