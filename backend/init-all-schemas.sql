@@ -31,19 +31,23 @@
 \echo 'Applying purchase order schema...'
 \ir purchase-order-schema.sql
 
--- 5. File management
+-- 5. Inventory management
+\echo 'Applying inventory schema...'
+\ir inventory-schema.sql
+
+-- 6. File management
 \echo 'Applying file attachments schema...'
 \ir file-attachments-schema.sql
 
--- 6. Equipment tracking
+-- 7. Equipment tracking
 \echo 'Applying equipment schema...'
 \ir equipment-schema.sql
 
--- 7. Multi-day scheduling
+-- 8. Multi-day scheduling
 \echo 'Applying multi-day scheduling schema...'
 \ir multi-day-scheduling-schema.sql
 
--- 8. Invoicing and QuickBooks integration
+-- 9. Invoicing and QuickBooks integration
 \echo 'Applying invoicing schema...'
 \ir invoicing-schema.sql
 

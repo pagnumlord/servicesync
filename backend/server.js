@@ -6566,6 +6566,470 @@ app.post('/api/invoices/:id/quickbooks-export', async (req, res) => {
   }
 });
 
+// ============================================
+// INVENTORY MANAGEMENT ENDPOINTS
+// ============================================
+
+/**
+ * @route GET /api/inventory
+ * @description Get all inventory items with optional filtering
+ * @query item_type - Filter by 'inventory' or 'miscellaneous'
+ * @query vendor_id - Filter by vendor
+ * @query search - Search by part number or description
+ * @query low_stock - Only show items at or below reorder level
+ * @query active_only - Only show active items (default: true)
+ */
+app.get('/api/inventory', async (req, res) => {
+  try {
+    const { item_type, vendor_id, search, low_stock, active_only = 'true' } = req.query;
+
+    let query = 'SELECT * FROM inventory_items_with_vendor WHERE 1=1';
+    const params = [];
+    let paramCount = 1;
+
+    if (active_only === 'true') {
+      query += ' AND is_active = TRUE';
+    }
+
+    if (item_type) {
+      query += ` AND item_type = $${paramCount}`;
+      params.push(item_type);
+      paramCount++;
+    }
+
+    if (vendor_id) {
+      query += ` AND primary_vendor_id = $${paramCount}`;
+      params.push(vendor_id);
+      paramCount++;
+    }
+
+    if (search) {
+      query += ` AND (part_number ILIKE $${paramCount} OR description ILIKE $${paramCount} OR manufacturer ILIKE $${paramCount})`;
+      params.push(`%${search}%`);
+      paramCount++;
+    }
+
+    if (low_stock === 'true') {
+      query += ' AND needs_reorder = TRUE';
+    }
+
+    query += ' ORDER BY part_number, description';
+
+    const result = await pool.query(query, params);
+
+    // Get summary stats
+    const statsQuery = `
+      SELECT
+        COUNT(*) as total_items,
+        COUNT(*) FILTER (WHERE item_type = 'inventory') as inventory_count,
+        COUNT(*) FILTER (WHERE item_type = 'miscellaneous') as miscellaneous_count,
+        COUNT(*) FILTER (WHERE needs_reorder = TRUE) as low_stock_count,
+        SUM(quantity_on_hand * unit_cost) as total_inventory_value
+      FROM inventory_items_with_vendor
+      WHERE is_active = TRUE
+    `;
+    const statsResult = await pool.query(statsQuery);
+
+    res.json({
+      items: result.rows,
+      stats: statsResult.rows[0],
+      count: result.rows.length
+    });
+  } catch (error) {
+    console.error('Error fetching inventory:', error);
+    res.status(500).json({ error: 'Failed to fetch inventory items' });
+  }
+});
+
+/**
+ * @route GET /api/inventory/low-stock
+ * @description Get items at or below reorder level
+ */
+app.get('/api/inventory/low-stock', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM inventory_low_stock');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching low stock items:', error);
+    res.status(500).json({ error: 'Failed to fetch low stock items' });
+  }
+});
+
+/**
+ * @route GET /api/inventory/:id
+ * @description Get single inventory item with full details
+ */
+app.get('/api/inventory/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get item details
+    const itemResult = await pool.query(
+      'SELECT * FROM inventory_items_with_vendor WHERE id = $1',
+      [id]
+    );
+
+    if (itemResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    // Get price history
+    const historyResult = await pool.query(
+      `SELECT * FROM inventory_price_history
+       WHERE inventory_item_id = $1
+       ORDER BY changed_at DESC
+       LIMIT 10`,
+      [id]
+    );
+
+    // Get vendor pricing
+    const vendorPricingResult = await pool.query(
+      `SELECT vp.*, v.vendor_name, v.vendor_code
+       FROM inventory_vendor_pricing vp
+       JOIN vendors v ON vp.vendor_id = v.id
+       WHERE vp.inventory_item_id = $1
+       ORDER BY vp.is_preferred DESC, vp.vendor_unit_cost ASC`,
+      [id]
+    );
+
+    res.json({
+      item: itemResult.rows[0],
+      price_history: historyResult.rows,
+      vendor_pricing: vendorPricingResult.rows
+    });
+  } catch (error) {
+    console.error('Error fetching inventory item:', error);
+    res.status(500).json({ error: 'Failed to fetch inventory item' });
+  }
+});
+
+/**
+ * @route POST /api/inventory
+ * @description Create new inventory item
+ */
+app.post('/api/inventory', async (req, res) => {
+  try {
+    const {
+      item_type,
+      product_category,
+      part_number,
+      description,
+      manufacturer,
+      mfg_part_number,
+      unit_cost,
+      unit_sale,
+      quantity_on_hand,
+      reorder_level,
+      primary_vendor_id,
+      is_taxable,
+      is_equipment,
+      is_consignment,
+      notes
+    } = req.body;
+
+    // Validation
+    if (!description || !item_type) {
+      return res.status(400).json({ error: 'Description and item type are required' });
+    }
+
+    const result = await pool.query(`
+      INSERT INTO inventory_items (
+        item_type, product_category, part_number, description, manufacturer,
+        mfg_part_number, unit_cost, unit_sale, quantity_on_hand, reorder_level,
+        primary_vendor_id, is_taxable, is_equipment, is_consignment, notes,
+        created_by, is_active
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, TRUE)
+      RETURNING *
+    `, [
+      item_type, product_category, part_number, description, manufacturer,
+      mfg_part_number, unit_cost || 0, unit_sale || 0, quantity_on_hand || 0,
+      reorder_level || 0, primary_vendor_id, is_taxable !== false, is_equipment || false,
+      is_consignment || false, notes, req.user?.id || null
+    ]);
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating inventory item:', error);
+    if (error.code === '23505') { // Unique violation
+      res.status(400).json({ error: 'Part number already exists' });
+    } else {
+      res.status(500).json({ error: 'Failed to create inventory item' });
+    }
+  }
+});
+
+/**
+ * @route PUT /api/inventory/:id
+ * @description Update inventory item
+ */
+app.put('/api/inventory/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      item_type,
+      product_category,
+      part_number,
+      description,
+      manufacturer,
+      mfg_part_number,
+      unit_cost,
+      unit_sale,
+      quantity_on_hand,
+      reorder_level,
+      primary_vendor_id,
+      is_taxable,
+      is_equipment,
+      is_consignment,
+      is_active,
+      notes
+    } = req.body;
+
+    const result = await pool.query(`
+      UPDATE inventory_items SET
+        item_type = COALESCE($1, item_type),
+        product_category = COALESCE($2, product_category),
+        part_number = COALESCE($3, part_number),
+        description = COALESCE($4, description),
+        manufacturer = COALESCE($5, manufacturer),
+        mfg_part_number = COALESCE($6, mfg_part_number),
+        unit_cost = COALESCE($7, unit_cost),
+        unit_sale = COALESCE($8, unit_sale),
+        quantity_on_hand = COALESCE($9, quantity_on_hand),
+        reorder_level = COALESCE($10, reorder_level),
+        primary_vendor_id = COALESCE($11, primary_vendor_id),
+        is_taxable = COALESCE($12, is_taxable),
+        is_equipment = COALESCE($13, is_equipment),
+        is_consignment = COALESCE($14, is_consignment),
+        is_active = COALESCE($15, is_active),
+        notes = COALESCE($16, notes),
+        updated_by = $17,
+        updated_at = NOW()
+      WHERE id = $18
+      RETURNING *
+    `, [
+      item_type, product_category, part_number, description, manufacturer,
+      mfg_part_number, unit_cost, unit_sale, quantity_on_hand, reorder_level,
+      primary_vendor_id, is_taxable, is_equipment, is_consignment, is_active,
+      notes, req.user?.id || null, id
+    ]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating inventory item:', error);
+    if (error.code === '23505') {
+      res.status(400).json({ error: 'Part number already exists' });
+    } else {
+      res.status(500).json({ error: 'Failed to update inventory item' });
+    }
+  }
+});
+
+/**
+ * @route POST /api/inventory/:id/price-update
+ * @description Update item price with history tracking
+ */
+app.post('/api/inventory/:id/price-update', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { unit_cost, unit_sale, change_reason, change_source } = req.body;
+
+    if (!unit_cost && !unit_sale) {
+      return res.status(400).json({ error: 'At least one price must be provided' });
+    }
+
+    // Get current prices
+    const currentResult = await pool.query(
+      'SELECT unit_cost, unit_sale FROM inventory_items WHERE id = $1',
+      [id]
+    );
+
+    if (currentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    const current = currentResult.rows[0];
+
+    // Update prices (trigger will log to history)
+    const result = await pool.query(`
+      UPDATE inventory_items SET
+        unit_cost = COALESCE($1, unit_cost),
+        unit_sale = COALESCE($2, unit_sale),
+        updated_by = $3,
+        updated_at = NOW()
+      WHERE id = $4
+      RETURNING *
+    `, [unit_cost, unit_sale, req.user?.id || null, id]);
+
+    // Update the most recent price history entry with reason and source
+    if (change_reason || change_source) {
+      await pool.query(`
+        UPDATE inventory_price_history
+        SET change_reason = COALESCE($1, change_reason),
+            change_source = COALESCE($2, change_source)
+        WHERE inventory_item_id = $3
+          AND changed_at = (
+            SELECT MAX(changed_at)
+            FROM inventory_price_history
+            WHERE inventory_item_id = $3
+          )
+      `, [change_reason, change_source, id]);
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating prices:', error);
+    res.status(500).json({ error: 'Failed to update prices' });
+  }
+});
+
+/**
+ * @route POST /api/inventory/bulk-price-update
+ * @description Bulk update prices for multiple items
+ */
+app.post('/api/inventory/bulk-price-update', async (req, res) => {
+  try {
+    const { updates, change_reason, change_source } = req.body;
+
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return res.status(400).json({ error: 'Updates array is required' });
+    }
+
+    const results = [];
+    const errors = [];
+
+    for (const update of updates) {
+      try {
+        const { id, unit_cost, unit_sale } = update;
+
+        const result = await pool.query(`
+          UPDATE inventory_items SET
+            unit_cost = COALESCE($1, unit_cost),
+            unit_sale = COALESCE($2, unit_sale),
+            updated_by = $3,
+            updated_at = NOW()
+          WHERE id = $4
+          RETURNING *
+        `, [unit_cost, unit_sale, req.user?.id || null, id]);
+
+        if (result.rows.length > 0) {
+          // Update price history with reason
+          if (change_reason || change_source) {
+            await pool.query(`
+              UPDATE inventory_price_history
+              SET change_reason = COALESCE($1, change_reason),
+                  change_source = COALESCE($2, change_source)
+              WHERE inventory_item_id = $3
+                AND changed_at = (
+                  SELECT MAX(changed_at)
+                  FROM inventory_price_history
+                  WHERE inventory_item_id = $3
+                )
+            `, [change_reason, change_source, id]);
+          }
+
+          results.push(result.rows[0]);
+        }
+      } catch (err) {
+        errors.push({ id: update.id, error: err.message });
+      }
+    }
+
+    res.json({
+      success: results.length,
+      failed: errors.length,
+      results,
+      errors
+    });
+  } catch (error) {
+    console.error('Error bulk updating prices:', error);
+    res.status(500).json({ error: 'Failed to bulk update prices' });
+  }
+});
+
+/**
+ * @route DELETE /api/inventory/:id
+ * @description Deactivate inventory item (soft delete)
+ */
+app.delete('/api/inventory/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(`
+      UPDATE inventory_items
+      SET is_active = FALSE, updated_at = NOW(), updated_by = $1
+      WHERE id = $2
+      RETURNING *
+    `, [req.user?.id || null, id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    res.json({ message: 'Item deactivated successfully', item: result.rows[0] });
+  } catch (error) {
+    console.error('Error deactivating item:', error);
+    res.status(500).json({ error: 'Failed to deactivate item' });
+  }
+});
+
+/**
+ * @route GET /api/inventory/price-history/:id
+ * @description Get price change history for an item
+ */
+app.get('/api/inventory/price-history/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { limit = 50 } = req.query;
+
+    const result = await pool.query(`
+      SELECT
+        iph.*,
+        u.username as changed_by_name,
+        v.vendor_name
+      FROM inventory_price_history iph
+      LEFT JOIN users u ON iph.changed_by = u.id
+      LEFT JOIN vendors v ON iph.vendor_id = v.id
+      WHERE iph.inventory_item_id = $1
+      ORDER BY iph.changed_at DESC
+      LIMIT $2
+    `, [id, limit]);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching price history:', error);
+    res.status(500).json({ error: 'Failed to fetch price history' });
+  }
+});
+
+/**
+ * @route GET /api/inventory/stats
+ * @description Get inventory statistics and value summary
+ */
+app.get('/api/inventory/stats', async (req, res) => {
+  try {
+    const valueSummary = await pool.query('SELECT * FROM inventory_value_summary');
+    const lowStock = await pool.query('SELECT COUNT(*) as count FROM inventory_low_stock');
+    const recentChanges = await pool.query(`
+      SELECT COUNT(*) as count
+      FROM inventory_price_history
+      WHERE changed_at >= CURRENT_DATE - INTERVAL '7 days'
+    `);
+
+    res.json({
+      value_summary: valueSummary.rows,
+      low_stock_count: parseInt(lowStock.rows[0].count),
+      recent_price_changes: parseInt(recentChanges.rows[0].count)
+    });
+  } catch (error) {
+    console.error('Error fetching inventory stats:', error);
+    res.status(500).json({ error: 'Failed to fetch inventory stats' });
+  }
+});
+
 server.listen(PORT, () => {
   console.log('');
   console.log('🚀 ServiceSync Backend Server Started');
