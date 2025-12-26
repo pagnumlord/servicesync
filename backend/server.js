@@ -306,6 +306,181 @@ app.get('/api/test', (req, res) => {
 });
 
 // ================================
+// UNIVERSAL SEARCH
+// ================================
+
+/**
+ * @route GET /api/search
+ * @description Universal search across all system entities
+ * @queryparam {string} q - Search query
+ * @queryparam {string} [type] - Optional filter: 'work_orders', 'customers', 'inventory', 'purchase_orders', 'all'
+ * @returns {Object} Categorized search results
+ */
+app.get('/api/search', async (req, res) => {
+  try {
+    const { q, type = 'all' } = req.query;
+
+    if (!q || q.trim() === '') {
+      return res.json({
+        results: {
+          workOrders: [],
+          customers: [],
+          inventory: [],
+          purchaseOrders: []
+        },
+        query: '',
+        totalResults: 0
+      });
+    }
+
+    const searchQuery = q.trim();
+    console.log(`🔍 Universal search: "${searchQuery}" (type: ${type})`);
+
+    const results = {
+      workOrders: [],
+      customers: [],
+      inventory: [],
+      purchaseOrders: []
+    };
+
+    // Search Work Orders
+    if (type === 'all' || type === 'work_orders') {
+      const woQuery = `
+        SELECT
+          wo.id,
+          wo.wo_number,
+          wo.customer_name,
+          wo.status,
+          wo.call_type,
+          wo.equipment_type,
+          wo.scheduled_date,
+          wo.problem_description,
+          wo.internal_notes
+        FROM work_orders wo
+        WHERE
+          wo.wo_number ILIKE $1
+          OR wo.customer_name ILIKE $1
+          OR wo.problem_description ILIKE $1
+          OR wo.internal_notes ILIKE $1
+          OR wo.equipment_type ILIKE $1
+        ORDER BY wo.scheduled_date DESC
+        LIMIT 20
+      `;
+
+      const woResult = await pool.query(woQuery, [`%${searchQuery}%`]);
+      results.workOrders = woResult.rows;
+    }
+
+    // Search Customers
+    if (type === 'all' || type === 'customers') {
+      const customerQuery = `
+        SELECT
+          id,
+          name,
+          customer_number,
+          phone,
+          service_address_line1,
+          service_city,
+          service_state,
+          zone,
+          balance_due
+        FROM customers
+        WHERE
+          name ILIKE $1
+          OR customer_number ILIKE $1
+          OR phone ILIKE $1
+          OR service_address_line1 ILIKE $1
+          OR service_city ILIKE $1
+        ORDER BY name ASC
+        LIMIT 20
+      `;
+
+      const customerResult = await pool.query(customerQuery, [`%${searchQuery}%`]);
+      results.customers = customerResult.rows;
+    }
+
+    // Search Inventory
+    if (type === 'all' || type === 'inventory') {
+      const inventoryQuery = `
+        SELECT
+          id,
+          part_number,
+          description,
+          category,
+          manufacturer,
+          cost,
+          retail_price,
+          markup_percentage,
+          quantity_in_stock,
+          location
+        FROM inventory
+        WHERE
+          part_number ILIKE $1
+          OR description ILIKE $1
+          OR manufacturer ILIKE $1
+          OR category ILIKE $1
+          OR location ILIKE $1
+          OR CAST(cost AS TEXT) ILIKE $1
+          OR CAST(retail_price AS TEXT) ILIKE $1
+        ORDER BY part_number ASC
+        LIMIT 20
+      `;
+
+      const inventoryResult = await pool.query(inventoryQuery, [`%${searchQuery}%`]);
+      results.inventory = inventoryResult.rows;
+    }
+
+    // Search Purchase Orders (if table exists)
+    if (type === 'all' || type === 'purchase_orders') {
+      try {
+        const poQuery = `
+          SELECT
+            id,
+            po_number,
+            vendor_name,
+            total_amount,
+            status,
+            order_date,
+            expected_delivery_date,
+            work_order_id
+          FROM purchase_orders
+          WHERE
+            po_number ILIKE $1
+            OR vendor_name ILIKE $1
+            OR CAST(total_amount AS TEXT) ILIKE $1
+          ORDER BY order_date DESC
+          LIMIT 20
+        `;
+
+        const poResult = await pool.query(poQuery, [`%${searchQuery}%`]);
+        results.purchaseOrders = poResult.rows;
+      } catch (error) {
+        // Table might not exist yet, skip PO search
+        console.log('⚠️  Purchase orders table not found, skipping PO search');
+      }
+    }
+
+    const totalResults =
+      results.workOrders.length +
+      results.customers.length +
+      results.inventory.length +
+      results.purchaseOrders.length;
+
+    console.log(`✅ Found ${totalResults} results (WO: ${results.workOrders.length}, Customers: ${results.customers.length}, Inventory: ${results.inventory.length}, PO: ${results.purchaseOrders.length})`);
+
+    res.json({
+      results,
+      query: searchQuery,
+      totalResults
+    });
+
+  } catch (error) {
+    console.error('❌ Universal search error:', error);
+    res.status(500).json({ error: 'Search failed', details: error.message });
+  }
+});
+
+// ================================
 // CUSTOMER MANAGEMENT ROUTES
 // ================================
 
