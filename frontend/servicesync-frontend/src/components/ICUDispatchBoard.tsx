@@ -736,39 +736,50 @@ function ICUDispatchBoard({
           <button
             onClick={() => navigateDate(-1)}
             style={{
-              background: 'none',
-              border: '1px solid #6B7280',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
               color: 'white',
-              padding: '0.375rem',
-              borderRadius: '0.25rem',
-              cursor: 'pointer'
+              padding: '0.5rem 0.625rem',
+              borderRadius: '0.5rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              fontSize: '0.875rem'
             }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
           >
             ◀
           </button>
-          <span style={{ 
+          <span style={{
             fontSize: '0.875rem',
-            fontWeight: '500',
+            fontWeight: '600',
             minWidth: '180px',
-            textAlign: 'center'
+            textAlign: 'center',
+            padding: '0.5rem 0.75rem',
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: '0.5rem'
           }}>
-            {currentDate.toLocaleDateString('en-US', { 
-              weekday: 'short', 
-              year: 'numeric', 
-              month: 'short', 
-              day: 'numeric' 
+            {currentDate.toLocaleDateString('en-US', {
+              weekday: 'short',
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric'
             })}
           </span>
           <button
             onClick={() => navigateDate(1)}
             style={{
-              background: 'none',
-              border: '1px solid #6B7280',
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
               color: 'white',
-              padding: '0.375rem',
-              borderRadius: '0.25rem',
-              cursor: 'pointer'
+              padding: '0.5rem 0.625rem',
+              borderRadius: '0.5rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              fontSize: '0.875rem'
             }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
           >
             ▶
           </button>
@@ -778,49 +789,31 @@ function ICUDispatchBoard({
               backgroundColor: '#3B82F6',
               color: 'white',
               border: 'none',
-              padding: '0.375rem 0.75rem',
-              borderRadius: '0.25rem',
+              padding: '0.5rem 1rem',
+              borderRadius: '0.5rem',
               cursor: 'pointer',
               fontSize: '0.75rem',
-              marginLeft: '0.5rem'
+              fontWeight: '600',
+              marginLeft: '0.5rem',
+              boxShadow: '0 2px 4px rgba(59, 130, 246, 0.3)',
+              transition: 'all 0.2s'
             }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563EB'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3B82F6'}
           >
             Today
           </button>
         </div>
 
         <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
-          {/* New Work Order Button */}
-          <button
-            onClick={() => setShowQuickWorkOrderForm(true)}
-            style={{
-              backgroundColor: '#10B981',
-              color: 'white',
-              border: 'none',
-              padding: '0.5rem 1rem',
-              borderRadius: '0.375rem',
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-              fontWeight: '600',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              marginRight: '0.75rem',
-              boxShadow: '0 2px 4px rgba(16, 185, 129, 0.3)'
-            }}
-          >
-            <Plus style={{ width: '1rem', height: '1rem' }} />
-            New Work Order
-          </button>
-
           {/* Info display toggle - more compact */}
-          <div style={{ 
-            display: 'flex', 
-            gap: '0.125rem', 
+          <div style={{
+            display: 'flex',
+            gap: '0.25rem',
             marginRight: '0.75rem',
             backgroundColor: 'rgba(255, 255, 255, 0.1)',
-            borderRadius: '0.25rem',
-            padding: '0.125rem'
+            borderRadius: '0.5rem',
+            padding: '0.25rem'
           }}>
             <button
               onClick={() => setInfoDisplayMode('equipment')}
@@ -828,11 +821,13 @@ function ICUDispatchBoard({
                 backgroundColor: infoDisplayMode === 'equipment' ? '#10B981' : 'transparent',
                 color: 'white',
                 border: 'none',
-                padding: '0.375rem 0.75rem',
-                borderRadius: '0.125rem',
+                padding: '0.5rem 0.875rem',
+                borderRadius: '0.375rem',
                 cursor: 'pointer',
                 fontSize: '0.75rem',
-                fontWeight: '500'
+                fontWeight: '600',
+                transition: 'all 0.2s',
+                boxShadow: infoDisplayMode === 'equipment' ? '0 2px 4px rgba(16, 185, 129, 0.3)' : 'none'
               }}
             >
               🔧 Equipment
@@ -843,11 +838,13 @@ function ICUDispatchBoard({
                 backgroundColor: infoDisplayMode === 'notes' ? '#10B981' : 'transparent',
                 color: 'white',
                 border: 'none',
-                padding: '0.375rem 0.75rem',
-                borderRadius: '0.125rem',
+                padding: '0.5rem 0.875rem',
+                borderRadius: '0.375rem',
                 cursor: 'pointer',
                 fontSize: '0.75rem',
-                fontWeight: '500'
+                fontWeight: '600',
+                transition: 'all 0.2s',
+                boxShadow: infoDisplayMode === 'notes' ? '0 2px 4px rgba(16, 185, 129, 0.3)' : 'none'
               }}
             >
               💬 Notes
@@ -855,17 +852,26 @@ function ICUDispatchBoard({
           </div>
 
           {/* View mode toggle - more compact */}
-          <div style={{ display: 'flex', gap: '0.125rem' }}>
+          <div style={{
+            display: 'flex',
+            gap: '0.25rem',
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: '0.5rem',
+            padding: '0.25rem'
+          }}>
             <button
               onClick={() => setViewMode('board')}
               style={{
                 backgroundColor: viewMode === 'board' ? '#3B82F6' : 'transparent',
                 color: 'white',
-                border: '1px solid #6B7280',
-                padding: '0.375rem 0.75rem',
-                borderRadius: '0.25rem',
+                border: 'none',
+                padding: '0.5rem 0.875rem',
+                borderRadius: '0.375rem',
                 cursor: 'pointer',
-                fontSize: '0.75rem'
+                fontSize: '0.75rem',
+                fontWeight: '600',
+                transition: 'all 0.2s',
+                boxShadow: viewMode === 'board' ? '0 2px 4px rgba(59, 130, 246, 0.3)' : 'none'
               }}
             >
               📊 Board
@@ -875,11 +881,14 @@ function ICUDispatchBoard({
               style={{
                 backgroundColor: viewMode === 'calendar' ? '#3B82F6' : 'transparent',
                 color: 'white',
-                border: '1px solid #6B7280',
-                padding: '0.375rem 0.75rem',
-                borderRadius: '0.25rem',
+                border: 'none',
+                padding: '0.5rem 0.875rem',
+                borderRadius: '0.375rem',
                 cursor: 'pointer',
-                fontSize: '0.75rem'
+                fontSize: '0.75rem',
+                fontWeight: '600',
+                transition: 'all 0.2s',
+                boxShadow: viewMode === 'calendar' ? '0 2px 4px rgba(59, 130, 246, 0.3)' : 'none'
               }}
             >
               📅 Calendar
@@ -932,24 +941,28 @@ function ICUDispatchBoard({
               }}>
                 <div style={{
                   fontSize: '0.75rem',
-                  fontWeight: '600',
-                  color: '#374151',
-                  marginBottom: '0.375rem',
+                  fontWeight: '700',
+                  color: '#1F2937',
+                  marginBottom: '0.5rem',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between'
+                  justifyContent: 'space-between',
+                  padding: '0.25rem 0.5rem',
+                  backgroundColor: '#F9FAFB',
+                  borderRadius: '0.5rem'
                 }}>
-                  <span>Unassigned ({unassignedWorkOrders.length})</span>
+                  <span>📋 Unassigned ({unassignedWorkOrders.length})</span>
                 </div>
-                
+
                 <div
                   style={{
                     flex: 1,
-                    border: '1px dashed #9CA3AF',
-                    borderRadius: '0.375rem',
+                    border: '2px dashed #CBD5E1',
+                    borderRadius: '0.75rem',
                     backgroundColor: 'white',
                     overflow: 'auto',
-                    padding: '0.375rem'
+                    padding: '0.5rem',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05), inset 0 1px 2px rgba(0, 0, 0, 0.02)'
                   }}
                   onDragOver={(e) => {
                     e.preventDefault();
@@ -1016,21 +1029,25 @@ function ICUDispatchBoard({
               }}>
                 <div style={{
                   fontSize: '0.75rem',
-                  fontWeight: '600',
-                  color: '#374151',
-                  marginBottom: '0.375rem'
+                  fontWeight: '700',
+                  color: '#1F2937',
+                  marginBottom: '0.5rem',
+                  padding: '0.25rem 0.5rem',
+                  backgroundColor: '#F9FAFB',
+                  borderRadius: '0.5rem'
                 }}>
                   ⚙️ Parts Ordered ({partsWorkOrders.length})
                 </div>
-                
+
                 <div
                   style={{
                     flex: 1,
-                    border: '1px dashed #7C3AED',
-                    borderRadius: '0.375rem',
+                    border: '2px dashed #A78BFA',
+                    borderRadius: '0.75rem',
                     backgroundColor: 'white',
                     overflow: 'auto',
-                    padding: '0.375rem'
+                    padding: '0.5rem',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05), inset 0 1px 2px rgba(0, 0, 0, 0.02)'
                   }}
                   onDragOver={(e) => {
                     e.preventDefault();
@@ -1096,21 +1113,25 @@ function ICUDispatchBoard({
               }}>
                 <div style={{
                   fontSize: '0.75rem',
-                  fontWeight: '600',
-                  color: '#374151',
-                  marginBottom: '0.375rem'
+                  fontWeight: '700',
+                  color: '#1F2937',
+                  marginBottom: '0.5rem',
+                  padding: '0.25rem 0.5rem',
+                  backgroundColor: '#F9FAFB',
+                  borderRadius: '0.5rem'
                 }}>
                   ✓ Ready to Schedule ({readyToSchedule.length})
                 </div>
-                
+
                 <div
                   style={{
                     flex: 1,
-                    border: '1px dashed #EAB308',
-                    borderRadius: '0.375rem',
+                    border: '2px dashed #FBBF24',
+                    borderRadius: '0.75rem',
                     backgroundColor: 'white',
                     overflow: 'auto',
-                    padding: '0.375rem'
+                    padding: '0.5rem',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05), inset 0 1px 2px rgba(0, 0, 0, 0.02)'
                   }}
                   onDragOver={(e) => {
                     e.preventDefault();
@@ -1412,17 +1433,17 @@ function TechnicianColumn({
         gap: '0.5rem',
         marginBottom: '0.75rem',
         backgroundColor: 'white',
-        padding: '0.75rem',
-        borderRadius: '0.375rem',
+        padding: '0.875rem',
+        borderRadius: '0.75rem',
         border: '1px solid #E5E7EB',
-        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.05)'
       }}>
         {technician.profile_image ? (
           <div
             style={{
               position: 'relative',
-              width: '32px',
-              height: '32px'
+              width: '40px',
+              height: '40px'
             }}
             title={`${technician.crew || 'Unassigned'} Team`}
           >
@@ -1430,29 +1451,29 @@ function TechnicianColumn({
               src={`http://localhost:5000${technician.profile_image}`}
               alt={`${technician.first_name} ${technician.last_name}`}
               style={{
-                width: '32px',
-                height: '32px',
+                width: '40px',
+                height: '40px',
                 borderRadius: '50%',
                 objectFit: 'cover',
-                border: `2px solid ${getCrewColor(technician.crew)}`,
-                boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
+                border: `3px solid ${getCrewColor(technician.crew)}`,
+                boxShadow: '0 2px 6px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.08)'
               }}
             />
           </div>
         ) : (
           <div
             style={{
-              width: '32px',
-              height: '32px',
+              width: '40px',
+              height: '40px',
               borderRadius: '50%',
               backgroundColor: getCrewColor(technician.crew),
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: 'white',
-              fontWeight: '600',
-              fontSize: '0.75rem',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
+              fontWeight: '700',
+              fontSize: '0.875rem',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.08)'
             }}
             title={`${technician.crew || 'Unassigned'} Team`}
           >
@@ -1470,21 +1491,21 @@ function TechnicianColumn({
           }}>
             {technician.first_name} {technician.last_name}
           </div>
-          <div style={{ fontSize: '0.625rem', color: '#6B7280', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span>{technician.crew} • Van {technician.van_number}</span>
+          <div style={{ fontSize: '0.625rem', color: '#6B7280', display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.125rem' }}>
+            <span style={{ fontWeight: '500' }}>{technician.crew} • Van {technician.van_number}</span>
             <span style={{
               fontSize: '0.625rem',
               fontWeight: '700',
-              padding: '0.125rem 0.25rem',
-              borderRadius: '0.25rem',
+              padding: '0.125rem 0.375rem',
+              borderRadius: '0.375rem',
               backgroundColor: techZone ? (ZONE_COLORS[techZone] || '#6B7280') : '#9CA3AF',
               color: 'white',
-              border: '1px solid white',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+              border: 'none',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.2)'
             }}
             title={techZone ? `Currently in Zone ${techZone}` : (hasGPS ? 'Outside service zones' : 'GPS unavailable')}
             >
-              {techZone || '?'}
+              Zone {techZone || '?'}
             </span>
           </div>
         </div>
