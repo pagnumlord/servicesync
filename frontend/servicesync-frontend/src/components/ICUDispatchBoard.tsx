@@ -8,6 +8,7 @@ import CalendarView from './CalendarView';
 import { getStatusColor, getQueueColor, shouldUseTypeColoring } from '../utils/constants';
 import QuickNotesPreview from './QuickNotesPreview';
 import CheckOutModal from './CheckOutModal';
+import QuickWorkOrderForm from './QuickWorkOrderForm';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -146,6 +147,7 @@ function ICUDispatchBoard({
   const [draggedWorkOrder, setDraggedWorkOrder] = useState<EnhancedWorkOrder | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
   const [quickPreviewWorkOrder, setQuickPreviewWorkOrder] = useState<WorkOrder | null>(null);
+  const [showQuickWorkOrderForm, setShowQuickWorkOrderForm] = useState(false);
 
   // Enhanced WebSocket connection
   const {
@@ -621,6 +623,40 @@ function ICUDispatchBoard({
     }
   };
 
+  // Handle quick work order creation
+  const handleCreateWorkOrder = async (workOrderData: any) => {
+    try {
+      const response = await fetch(`${API_BASE}/work-orders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(workOrderData)
+      });
+
+      if (response.ok) {
+        const newWorkOrder = await response.json();
+        console.log('✅ Work order created successfully:', newWorkOrder);
+
+        // Emit socket event for real-time update
+        emit('workOrderCreated', {
+          ...newWorkOrder,
+          affectedDates: [workOrderData.scheduled_date || currentDate.toISOString().split('T')[0]]
+        });
+
+        // Reload dispatch data
+        loadDispatchData(false);
+
+        alert(`Work order ${newWorkOrder.wo_number || newWorkOrder.work_order_number} created successfully!`);
+      } else {
+        const error = await response.json();
+        alert(`Failed to create work order: ${error.error || 'Unknown error'}`);
+        throw new Error(error.error || 'Failed to create work order');
+      }
+    } catch (error) {
+      console.error('⚠️ Error creating work order:', error);
+      throw error;
+    }
+  };
+
   const navigateDate = (direction: number) => {
     const newDate = new Date(currentDate);
     if (viewMode === 'calendar') {
@@ -754,7 +790,28 @@ function ICUDispatchBoard({
         </div>
 
         <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
-
+          {/* New Work Order Button */}
+          <button
+            onClick={() => setShowQuickWorkOrderForm(true)}
+            style={{
+              backgroundColor: '#10B981',
+              color: 'white',
+              border: 'none',
+              padding: '0.5rem 1rem',
+              borderRadius: '0.375rem',
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              marginRight: '0.75rem',
+              boxShadow: '0 2px 4px rgba(16, 185, 129, 0.3)'
+            }}
+          >
+            <Plus style={{ width: '1rem', height: '1rem' }} />
+            New Work Order
+          </button>
 
           {/* Info display toggle - more compact */}
           <div style={{ 
@@ -1282,6 +1339,15 @@ function ICUDispatchBoard({
           }}
         />
       )}
+
+      {/* Quick Work Order Form */}
+      <QuickWorkOrderForm
+        isOpen={showQuickWorkOrderForm}
+        onClose={() => setShowQuickWorkOrderForm(false)}
+        onSubmit={handleCreateWorkOrder}
+        technicians={technicians}
+        preSelectedDate={currentDate.toISOString().split('T')[0]}
+      />
     </div>
   );
 }
