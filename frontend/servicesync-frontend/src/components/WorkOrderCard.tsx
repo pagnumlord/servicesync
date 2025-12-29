@@ -1,30 +1,38 @@
 // WorkOrderCard.tsx - Updated with status-based borders and equipment/notes toggle
 import React, { useRef, useState } from 'react';
 import { WorkOrder } from '../types';
-import { Clock, MapPin, User, Wrench, AlertTriangle, PlayCircle, StopCircle } from 'lucide-react';
+import { Clock, MapPin, User, Wrench, AlertTriangle, PlayCircle, StopCircle, Megaphone, Check, Pause } from 'lucide-react';
 
 interface WorkOrderCardProps {
   workOrder: WorkOrder;
   showEquipment?: boolean;
   hideTechName?: boolean;
+  displayFormat?: 'wo_number' | 'location' | 'call_type';
   onOpenDetails?: (workOrder: WorkOrder) => void;
   onContextMenu?: (e: React.MouseEvent, workOrder: WorkOrder) => void;
   onQuickView?: (workOrder: WorkOrder) => void;
   onCheckIn?: (workOrder: WorkOrder) => void;
   onCheckOut?: (workOrder: WorkOrder) => void;
   showCheckInOut?: boolean;
+  onActivate?: (workOrder: WorkOrder) => void;
+  onComplete?: (workOrder: WorkOrder) => void;
+  onSuspend?: (workOrder: WorkOrder) => void;
 }
 
 const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
   workOrder,
   showEquipment = true,
   hideTechName = false,
+  displayFormat = 'wo_number',
   onOpenDetails,
   onContextMenu,
   onQuickView,
   onCheckIn,
   onCheckOut,
-  showCheckInOut = false
+  showCheckInOut = false,
+  onActivate,
+  onComplete,
+  onSuspend
 }) => {
 
   // Use a ref to track click timing for distinguishing single vs double clicks
@@ -204,14 +212,18 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
           flexDirection: 'column',
           flex: 1
         }}>
+          {/* Primary display - changes based on displayFormat */}
           <div style={{
             fontSize: '0.75rem',
             fontWeight: '600',
             color: '#1F2937',
             marginBottom: '0.125rem'
           }}>
-            {workOrder.wo_number}
+            {displayFormat === 'wo_number' && workOrder.wo_number}
+            {displayFormat === 'location' && `${workOrder.service_city || 'Unknown'}${workOrder.customer_zone ? ` (${workOrder.customer_zone})` : ''}`}
+            {displayFormat === 'call_type' && (workOrder.call_type || workOrder.problem_type || 'Service Call')}
           </div>
+          {/* Secondary display - always customer name */}
           <div style={{
             fontSize: '0.813rem',
             color: '#4B5563',
@@ -383,6 +395,126 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
             color={workOrder.call_urgency === 'Emergency' ? '#DC2626' : '#F59E0B'}
             fill={workOrder.call_urgency === 'Emergency' ? '#DC2626' : '#F59E0B'}
           />
+        </div>
+      )}
+
+      {/* Action Buttons - Activate, Complete, Suspend - Top-right corner on hover */}
+      {isHovered && (onActivate || onComplete || onSuspend) && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '0.5rem',
+            right: '0.5rem',
+            display: 'flex',
+            gap: '0.25rem',
+            zIndex: 10
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {onActivate && workOrder.status !== 'In Progress' && workOrder.status !== 'Complete' && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onActivate(workOrder);
+              }}
+              title="Activate"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '28px',
+                height: '28px',
+                padding: 0,
+                color: 'white',
+                backgroundColor: '#3B82F6',
+                border: '1px solid white',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#2563EB';
+                e.currentTarget.style.transform = 'scale(1.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#3B82F6';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+            >
+              <Megaphone size={16} />
+            </button>
+          )}
+
+          {onSuspend && workOrder.status !== 'Suspended' && workOrder.status !== 'Complete' && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSuspend(workOrder);
+              }}
+              title="Suspend"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '28px',
+                height: '28px',
+                padding: 0,
+                color: 'white',
+                backgroundColor: '#F59E0B',
+                border: '1px solid white',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#D97706';
+                e.currentTarget.style.transform = 'scale(1.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#F59E0B';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+            >
+              <Pause size={16} />
+            </button>
+          )}
+
+          {onComplete && workOrder.status !== 'Complete' && workOrder.status !== 'Completed' && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onComplete(workOrder);
+              }}
+              title="Complete"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '28px',
+                height: '28px',
+                padding: 0,
+                color: 'white',
+                backgroundColor: '#10B981',
+                border: '1px solid white',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#059669';
+                e.currentTarget.style.transform = 'scale(1.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#10B981';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+            >
+              <Check size={16} />
+            </button>
+          )}
         </div>
       )}
 

@@ -126,6 +126,7 @@ function ICUDispatchBoard({
   const handleWorkOrderSelect = onWorkOrderSelect || onOpenWorkOrder;
   const [viewMode, setViewMode] = useState<'board' | 'calendar'>('board');
   const [infoDisplayMode, setInfoDisplayMode] = useState<'equipment' | 'notes'>('equipment');
+  const [displayFormat, setDisplayFormat] = useState<'wo_number' | 'location' | 'call_type'>('wo_number');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -273,6 +274,15 @@ function ICUDispatchBoard({
 
     fetchZones();
   }, []);
+
+  // Cycle through display formats
+  const cycleDisplayFormat = () => {
+    setDisplayFormat(prev => {
+      if (prev === 'wo_number') return 'location';
+      if (prev === 'location') return 'call_type';
+      return 'wo_number';
+    });
+  };
 
   const enhanceWorkOrderWithVisibility = (workOrder: any): EnhancedWorkOrder => {
     return {
@@ -547,6 +557,21 @@ function ICUDispatchBoard({
     }
   };
 
+  // Action button handlers
+  const handleActivate = (workOrder: EnhancedWorkOrder) => {
+    // Activate is similar to check-in - starts the work order
+    handleCheckIn(workOrder);
+  };
+
+  const handleCompleteAction = (workOrder: EnhancedWorkOrder) => {
+    setSelectedWorkOrderForCompletion(workOrder);
+    setShowQueueModal(true);
+  };
+
+  const handleSuspendAction = (workOrder: EnhancedWorkOrder) => {
+    handleSuspendWorkOrder(workOrder, 'Suspended from dispatch board');
+  };
+
   // Handle tech check-in
   const handleCheckIn = async (workOrder: EnhancedWorkOrder) => {
     if (!workOrder?.id) return;
@@ -806,6 +831,32 @@ function ICUDispatchBoard({
         </div>
 
         <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
+          {/* Switch Format Button */}
+          <button
+            onClick={cycleDisplayFormat}
+            title={`Current: ${displayFormat === 'wo_number' ? 'WO Number' : displayFormat === 'location' ? 'Location/County' : 'Call Type'}`}
+            style={{
+              backgroundColor: '#8B5CF6',
+              color: 'white',
+              border: 'none',
+              padding: '0.5rem 0.875rem',
+              borderRadius: '0.5rem',
+              cursor: 'pointer',
+              fontSize: '0.75rem',
+              fontWeight: '600',
+              marginRight: '0.75rem',
+              boxShadow: '0 2px 4px rgba(139, 92, 246, 0.3)',
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.375rem'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#7C3AED'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#8B5CF6'}
+          >
+            🔄 {displayFormat === 'wo_number' ? 'WO#' : displayFormat === 'location' ? 'County' : 'Type'}
+          </button>
+
           {/* Info display toggle - more compact */}
           <div style={{
             display: 'flex',
@@ -922,6 +973,34 @@ function ICUDispatchBoard({
       }}>
         {viewMode === 'board' ? (
           <>
+            {/* ROW NUMBERS COLUMN */}
+            <div style={{
+              width: '36px',
+              backgroundColor: '#F9FAFB',
+              borderRight: '1px solid #E5E7EB',
+              display: 'flex',
+              flexDirection: 'column',
+              paddingTop: '0.5rem'
+            }}>
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((num) => (
+                <div
+                  key={num}
+                  style={{
+                    height: '120px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#9CA3AF',
+                    fontSize: '0.75rem',
+                    fontWeight: '600',
+                    borderBottom: num < 8 ? '1px solid #E5E7EB' : 'none'
+                  }}
+                >
+                  {num}
+                </div>
+              ))}
+            </div>
+
             {/* COMPACT SIDEBAR - Fixed width, internal scrolling */}
             <div style={{
               width: '260px', // Reduced width
@@ -1004,6 +1083,7 @@ function ICUDispatchBoard({
                           <WorkOrderCard
                             workOrder={workOrder}
                             showEquipment={infoDisplayMode === 'equipment'}
+                            displayFormat={displayFormat}
                             hideTechName={false}
                             onQuickView={setQuickPreviewWorkOrder}
                             onOpenDetails={handleWorkOrderSelect}
@@ -1011,6 +1091,9 @@ function ICUDispatchBoard({
                             onCheckIn={handleCheckIn}
                             onCheckOut={handleCheckOut}
                             showCheckInOut={true}
+                            onActivate={handleActivate}
+                            onComplete={handleCompleteAction}
+                            onSuspend={handleSuspendAction}
                           />
                         </div>
                       ))}
@@ -1089,6 +1172,7 @@ function ICUDispatchBoard({
                           <WorkOrderCard
                             workOrder={workOrder}
                             showEquipment={infoDisplayMode === 'equipment'}
+                            displayFormat={displayFormat}
                             hideTechName={true}
                             onQuickView={setQuickPreviewWorkOrder}
                             onOpenDetails={handleWorkOrderSelect}
@@ -1096,6 +1180,9 @@ function ICUDispatchBoard({
                             onCheckIn={handleCheckIn}
                             onCheckOut={handleCheckOut}
                             showCheckInOut={true}
+                            onActivate={handleActivate}
+                            onComplete={handleCompleteAction}
+                            onSuspend={handleSuspendAction}
                           />
                         </div>
                       ))}
@@ -1173,6 +1260,7 @@ function ICUDispatchBoard({
                           <WorkOrderCard
                             workOrder={workOrder}
                             showEquipment={infoDisplayMode === 'equipment'}
+                            displayFormat={displayFormat}
                             hideTechName={true}
                             onQuickView={setQuickPreviewWorkOrder}
                             onOpenDetails={handleWorkOrderSelect}
@@ -1180,6 +1268,9 @@ function ICUDispatchBoard({
                             onCheckIn={handleCheckIn}
                             onCheckOut={handleCheckOut}
                             showCheckInOut={true}
+                            onActivate={handleActivate}
+                            onComplete={handleCompleteAction}
+                            onSuspend={handleSuspendAction}
                           />
                         </div>
                       ))}
@@ -1211,9 +1302,13 @@ function ICUDispatchBoard({
                   dragOverTarget={dragOverTarget}
                   setDragOverTarget={setDragOverTarget}
                   infoDisplayMode={infoDisplayMode}
+                  displayFormat={displayFormat}
                   setQuickPreviewWorkOrder={setQuickPreviewWorkOrder}
                   onCheckIn={handleCheckIn}
                   onCheckOut={handleCheckOut}
+                  onActivate={handleActivate}
+                  onComplete={handleCompleteAction}
+                  onSuspend={handleSuspendAction}
                 />
               ))}
             </div>
@@ -1385,9 +1480,13 @@ interface TechnicianColumnProps {
   dragOverTarget: string | null;
   setDragOverTarget: (target: string | null) => void;
   infoDisplayMode?: 'equipment' | 'notes';
+  displayFormat?: 'wo_number' | 'location' | 'call_type';
   setQuickPreviewWorkOrder: (workOrder: WorkOrder | null) => void;
   onCheckIn: (workOrder: EnhancedWorkOrder) => void;
   onCheckOut: (workOrder: EnhancedWorkOrder) => void;
+  onActivate?: (workOrder: EnhancedWorkOrder) => void;
+  onComplete?: (workOrder: EnhancedWorkOrder) => void;
+  onSuspend?: (workOrder: EnhancedWorkOrder) => void;
 }
 
 function TechnicianColumn({
@@ -1401,9 +1500,13 @@ function TechnicianColumn({
   dragOverTarget,
   setDragOverTarget,
   infoDisplayMode = 'equipment',
+  displayFormat = 'wo_number',
   setQuickPreviewWorkOrder,
   onCheckIn,
-  onCheckOut
+  onCheckOut,
+  onActivate,
+  onComplete,
+  onSuspend
 }: TechnicianColumnProps) {
   
   const workOrders = technician.workOrders || technician.work_orders || [];
@@ -1431,7 +1534,7 @@ function TechnicianColumn({
         display: 'flex',
         alignItems: 'center',
         gap: '0.5rem',
-        marginBottom: '0.75rem',
+        marginBottom: '0.5rem',
         backgroundColor: 'white',
         padding: '0.875rem',
         borderRadius: '0.75rem',
@@ -1526,13 +1629,17 @@ function TechnicianColumn({
         backgroundColor="#FEF3C7"
         borderColor="#F59E0B"
         emptyMessage="Drop First AM job"
-        cardHeight="150px" // Increased height for comfortable fit without text cutoff
+        cardHeight="125px" // Snug fit for one WO card
         infoDisplayMode={infoDisplayMode}
+        displayFormat={displayFormat}
         setQuickPreviewWorkOrder={setQuickPreviewWorkOrder}
         isFirstAM={true}
         preventScroll={true} // Add this to prevent First AM from scrolling
         onCheckIn={onCheckIn}
         onCheckOut={onCheckOut}
+        onActivate={onActivate}
+        onComplete={onComplete}
+        onSuspend={onSuspend}
       />
 
       {/* Unscheduled Slot - FLEXIBLE HEIGHT */}
@@ -1552,10 +1659,14 @@ function TechnicianColumn({
         emptyMessage="Drag work orders here"
         flex={true}
         infoDisplayMode={infoDisplayMode}
+        displayFormat={displayFormat}
         setQuickPreviewWorkOrder={setQuickPreviewWorkOrder}
         isFirstAM={false}
         onCheckIn={onCheckIn}
         onCheckOut={onCheckOut}
+        onActivate={onActivate}
+        onComplete={onComplete}
+        onSuspend={onSuspend}
       />
     </div>
   );
@@ -1579,11 +1690,15 @@ interface CompactTimeSlotProps {
   cardHeight?: string;
   flex?: boolean;
   infoDisplayMode?: 'equipment' | 'notes';
+  displayFormat?: 'wo_number' | 'location' | 'call_type';
   setQuickPreviewWorkOrder: (workOrder: WorkOrder | null) => void;
   isFirstAM?: boolean;
   preventScroll?: boolean; // Add new prop for preventing scroll
   onCheckIn: (workOrder: EnhancedWorkOrder) => void;
   onCheckOut: (workOrder: EnhancedWorkOrder) => void;
+  onActivate?: (workOrder: EnhancedWorkOrder) => void;
+  onComplete?: (workOrder: EnhancedWorkOrder) => void;
+  onSuspend?: (workOrder: EnhancedWorkOrder) => void;
 }
 
 function CompactTimeSlot({
@@ -1603,11 +1718,15 @@ function CompactTimeSlot({
   cardHeight,
   flex = false,
   infoDisplayMode = 'equipment',
+  displayFormat = 'wo_number',
   setQuickPreviewWorkOrder,
   isFirstAM = false,
   preventScroll = false, // Add new parameter
   onCheckIn,
-  onCheckOut
+  onCheckOut,
+  onActivate,
+  onComplete,
+  onSuspend
 }: CompactTimeSlotProps) {
   const isDragOver = dragOverTarget === targetId;
 
@@ -1719,6 +1838,7 @@ function CompactTimeSlot({
                 <WorkOrderCard
                   workOrder={workOrder}
                   showEquipment={infoDisplayMode === 'equipment'}
+                  displayFormat={displayFormat}
                   hideTechName={true}
                   onQuickView={setQuickPreviewWorkOrder}
                   onOpenDetails={onWorkOrderSelect}
@@ -1726,6 +1846,9 @@ function CompactTimeSlot({
                   onCheckIn={onCheckIn}
                   onCheckOut={onCheckOut}
                   showCheckInOut={true}
+                  onActivate={onActivate}
+                  onComplete={onComplete}
+                  onSuspend={onSuspend}
                 />
               </div>
             ))}
