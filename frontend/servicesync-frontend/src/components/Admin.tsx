@@ -53,6 +53,7 @@ interface Technician {
   email?: string;
   crew: string;
   van_number: string;
+  profile_image?: string;
   notes?: string;
   is_active: boolean;
   created_at?: string;
@@ -622,21 +623,36 @@ const Admin: React.FC = () => {
               transition: 'all 0.2s'
             }}
           >
-            {/* Technician Photo Placeholder */}
+            {/* Technician Photo */}
             <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
-              <div style={{
-                width: '80px',
-                height: '80px',
-                borderRadius: '50%',
-                backgroundColor: '#f3f4f6',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto',
-                border: '3px solid #8B5CF6'
-              }}>
-                <Camera style={{ width: '2rem', height: '2rem', color: '#9ca3af' }} />
-              </div>
+              {tech.profile_image ? (
+                <img
+                  src={`http://localhost:5000${tech.profile_image}`}
+                  alt={`${tech.first_name} ${tech.last_name}`}
+                  style={{
+                    width: '80px',
+                    height: '80px',
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    margin: '0 auto',
+                    border: '3px solid #8B5CF6'
+                  }}
+                />
+              ) : (
+                <div style={{
+                  width: '80px',
+                  height: '80px',
+                  borderRadius: '50%',
+                  backgroundColor: '#f3f4f6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto',
+                  border: '3px solid #8B5CF6'
+                }}>
+                  <Camera style={{ width: '2rem', height: '2rem', color: '#9ca3af' }} />
+                </div>
+              )}
             </div>
 
             {/* Tech Info */}
@@ -664,9 +680,36 @@ const Admin: React.FC = () => {
                   input.onchange = async (e: any) => {
                     const file = e.target.files[0];
                     if (file) {
-                      // TODO: Upload to server
-                      console.log('Upload photo for tech:', tech.id, file);
-                      alert('Photo upload feature coming soon!');
+                      // Validate file size (5MB max)
+                      if (file.size > 5 * 1024 * 1024) {
+                        alert('File size must be less than 5MB');
+                        return;
+                      }
+
+                      const formData = new FormData();
+                      formData.append('photo', file);
+
+                      try {
+                        setLoading(true);
+                        const response = await fetch(`http://localhost:5000/api/technicians/${tech.id}/photo`, {
+                          method: 'POST',
+                          body: formData
+                        });
+
+                        if (response.ok) {
+                          console.log('✅ Photo uploaded successfully');
+                          await loadTechnicians(); // Reload to show new photo
+                          alert('Photo uploaded successfully!');
+                        } else {
+                          const error = await response.json();
+                          alert(`Failed to upload photo: ${error.error || 'Unknown error'}`);
+                        }
+                      } catch (error) {
+                        console.error('Failed to upload photo:', error);
+                        alert('Failed to upload photo');
+                      } finally {
+                        setLoading(false);
+                      }
                     }
                   };
                   input.click();
@@ -680,8 +723,10 @@ const Admin: React.FC = () => {
                   borderRadius: '0.375rem',
                   cursor: 'pointer',
                   fontSize: '0.75rem',
-                  fontWeight: '600'
+                  fontWeight: '600',
+                  opacity: loading ? 0.5 : 1
                 }}
+                disabled={loading}
               >
                 <Upload style={{ width: '0.875rem', height: '0.875rem', display: 'inline', marginRight: '0.25rem' }} />
                 Photo

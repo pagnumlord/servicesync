@@ -2581,6 +2581,170 @@ app.delete('/api/technicians/:id', async (req, res) => {
   }
 });
 
+// Configure multer for technician photo uploads
+const technicianPhotoStorage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    const uploadDir = path.join(__dirname, 'uploads', 'technicians');
+    try {
+      await fs.mkdir(uploadDir, { recursive: true });
+      cb(null, uploadDir);
+    } catch (error) {
+      cb(error, null);
+    }
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, `tech-${req.params.id}-${uniqueSuffix}${ext}`);
+  }
+});
+
+const uploadTechnicianPhoto = multer({
+  storage: technicianPhotoStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept only image files
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  }
+});
+
+/**
+ * @route POST /api/technicians/:id/photo
+ * @description Upload profile photo for a technician
+ * @returns {Object} Updated technician object
+ */
+app.post('/api/technicians/:id/photo', uploadTechnicianPhoto.single('photo'), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const technicianId = req.params.id;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No photo file uploaded' });
+    }
+
+    console.log(`📷 Uploading photo for technician ID: ${technicianId}`);
+
+    // Generate URL path for the uploaded file
+    const photoUrl = `/uploads/technicians/${req.file.filename}`;
+
+    // Get old photo to delete it
+    const oldPhoto = await client.query(
+      'SELECT profile_image FROM technicians WHERE id = $1',
+      [technicianId]
+    );
+
+    // Update technician with new photo URL
+    const result = await client.query(`
+      UPDATE technicians
+      SET profile_image = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING *
+    `, [photoUrl, technicianId]);
+
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      // Delete uploaded file since technician doesn't exist
+      await fs.unlink(req.file.path);
+      return res.status(404).json({ error: 'Technician not found' });
+    }
+
+    // Delete old photo file if it exists
+    if (oldPhoto.rows[0]?.profile_image) {
+      const oldPhotoPath = path.join(__dirname, oldPhoto.rows[0].profile_image);
+      try {
+        await fs.unlink(oldPhotoPath);
+      } catch (err) {
+        console.log('⚠️ Could not delete old photo file:', err.message);
+      }
+    }
+
+    await client.query('COMMIT');
+
+    console.log(`✅ Photo uploaded successfully for technician ID: ${technicianId}`);
+    res.json(result.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Upload photo error:', error);
+
+    // Delete uploaded file on error
+    if (req.file) {
+      try {
+        await fs.unlink(req.file.path);
+      } catch (err) {
+        console.error('⚠️ Could not delete uploaded file:', err);
+      }
+    }
+
+    res.status(500).json({ error: 'Failed to upload photo' });
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * @route DELETE /api/technicians/:id/photo
+ * @description Remove profile photo from a technician
+ * @returns {Object} Updated technician object
+ */
+app.delete('/api/technicians/:id/photo', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const technicianId = req.params.id;
+
+    console.log(`🗑️ Removing photo for technician ID: ${technicianId}`);
+
+    // Get current photo to delete it
+    const currentPhoto = await client.query(
+      'SELECT profile_image FROM technicians WHERE id = $1',
+      [technicianId]
+    );
+
+    if (currentPhoto.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Technician not found' });
+    }
+
+    // Remove photo reference from database
+    const result = await client.query(`
+      UPDATE technicians
+      SET profile_image = NULL, updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+    `, [technicianId]);
+
+    // Delete photo file if it exists
+    if (currentPhoto.rows[0]?.profile_image) {
+      const photoPath = path.join(__dirname, currentPhoto.rows[0].profile_image);
+      try {
+        await fs.unlink(photoPath);
+      } catch (err) {
+        console.log('⚠️ Could not delete photo file:', err.message);
+      }
+    }
+
+    await client.query('COMMIT');
+
+    console.log(`✅ Photo removed successfully for technician ID: ${technicianId}`);
+    res.json(result.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Remove photo error:', error);
+    res.status(500).json({ error: 'Failed to remove photo' });
+  } finally {
+    client.release();
+  }
+});
+
 // ================================
 // EQUIPMENT ROUTES
 // ================================
