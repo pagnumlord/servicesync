@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Search, AlertCircle, Calendar, User, Wrench, FileText } from 'lucide-react';
+import { X, Search, Calendar, User, FileText } from 'lucide-react';
+import { Technician } from '../types';
 
 interface Customer {
   id: number;
@@ -10,14 +11,6 @@ interface Customer {
   service_city: string;
   service_state: string;
   service_zip: string;
-}
-
-interface Technician {
-  id: number;
-  first_name: string;
-  last_name: string;
-  crew: string;
-  van_number: string;
 }
 
 interface QuickWorkOrderFormProps {
