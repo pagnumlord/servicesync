@@ -1351,24 +1351,48 @@ function TechnicianColumn({
         border: '1px solid #E5E7EB',
         boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)'
       }}>
-        <div
-          style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '50%',
-            backgroundColor: getCrewColor(technician.crew),
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            fontWeight: '600',
-            fontSize: '0.75rem',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
-          }}
-          title={`${technician.crew || 'Unassigned'} Team`}
-        >
-          {technician.first_name[0]}{technician.last_name[0]}
-        </div>
+        {technician.profile_image ? (
+          <div
+            style={{
+              position: 'relative',
+              width: '32px',
+              height: '32px'
+            }}
+            title={`${technician.crew || 'Unassigned'} Team`}
+          >
+            <img
+              src={`http://localhost:5000${technician.profile_image}`}
+              alt={`${technician.first_name} ${technician.last_name}`}
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                objectFit: 'cover',
+                border: `2px solid ${getCrewColor(technician.crew)}`,
+                boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
+              }}
+            />
+          </div>
+        ) : (
+          <div
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              backgroundColor: getCrewColor(technician.crew),
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontWeight: '600',
+              fontSize: '0.75rem',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
+            }}
+            title={`${technician.crew || 'Unassigned'} Team`}
+          >
+            {technician.first_name[0]}{technician.last_name[0]}
+          </div>
+        )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontWeight: '600',
