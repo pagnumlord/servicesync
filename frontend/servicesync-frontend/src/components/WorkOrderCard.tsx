@@ -221,7 +221,7 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
           }}>
             {displayFormat === 'wo_number' && workOrder.wo_number}
             {displayFormat === 'location' && `${workOrder.service_city || 'Unknown'}${workOrder.customer_zone ? ` (${workOrder.customer_zone})` : ''}`}
-            {displayFormat === 'call_type' && (workOrder.call_type || workOrder.problem_type || 'Service Call')}
+            {displayFormat === 'call_type' && (workOrder.call_type || 'Service Call')}
           </div>
           {/* Secondary display - always customer name */}
           <div style={{
