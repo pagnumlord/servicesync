@@ -1518,7 +1518,7 @@ app.post('/api/work-orders', async (req, res) => {
       callRate,
       callUrgency,
       callType,
-      'Open',
+      'Active',
       scheduledDate || null,
       scheduledTimeSlot || null,
       assignedTechId,
@@ -4746,7 +4746,7 @@ app.get('/api/customers/:id/equipment', async (req, res) => {
         e.*,
         (SELECT COUNT(*) FROM work_orders wo WHERE wo.equipment_id = e.id) as work_order_count
       FROM equipment e
-      WHERE e.customer_id = $1 AND e.is_active = true
+      WHERE e.customer_id = $1
       ORDER BY e.equipment_number, e.equipment_type
     `, [id]);
 
