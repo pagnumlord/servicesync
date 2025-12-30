@@ -444,6 +444,7 @@ const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({
 
   const [workOrder, setWorkOrder] = useState({
     problemDescription: '',
+    equipmentType: '',
     callRate: 'RT',
     callUrgency: 'Default',
     callType: 'Time and Material',
@@ -481,6 +482,7 @@ const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({
     setCustomerEquipment([]);
     setWorkOrder({
       problemDescription: '',
+      equipmentType: '',
       callRate: 'RT',
       callUrgency: 'Default',
       callType: 'Time and Material',
@@ -575,6 +577,7 @@ const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({
       const woData = {
         customerId: selectedCustomer.id,
         equipmentId: workOrder.equipmentId ? parseInt(workOrder.equipmentId) : null,
+        equipmentType: workOrder.equipmentType.trim() || null,
         problemDescription: workOrder.problemDescription.trim(),
         callRate: workOrder.callRate,
         callUrgency: workOrder.callUrgency,
@@ -852,10 +855,10 @@ const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({
               <div style={{ display: 'grid', gap: '1rem' }}>
                 {/* Problem Description */}
                 <div>
-                  <label style={{ 
-                    display: 'block', 
-                    fontSize: '0.875rem', 
-                    fontWeight: '500', 
+                  <label style={{
+                    display: 'block',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
                     color: '#374151',
                     marginBottom: '0.5rem'
                   }}>
@@ -876,6 +879,44 @@ const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({
                       resize: 'vertical'
                     }}
                   />
+                </div>
+
+                {/* Equipment Type */}
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '0.5rem'
+                  }}>
+                    Equipment Type (Optional)
+                  </label>
+                  <select
+                    value={workOrder.equipmentType}
+                    onChange={(e) => setWorkOrder(prev => ({ ...prev, equipmentType: e.target.value }))}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem',
+                      backgroundColor: 'white'
+                    }}
+                  >
+                    <option value="">Select Equipment Type</option>
+                    <option value="Steamer">Steamer</option>
+                    <option value="Oven">Oven</option>
+                    <option value="Fryer">Fryer</option>
+                    <option value="Griddle">Griddle</option>
+                    <option value="Walk-in Cooler">Walk-in Cooler</option>
+                    <option value="Reach-in Cooler">Reach-in Cooler</option>
+                    <option value="Freezer">Freezer</option>
+                    <option value="Ice Machine">Ice Machine</option>
+                    <option value="HVAC Unit">HVAC Unit</option>
+                    <option value="Dishwasher">Dishwasher</option>
+                    <option value="Other">Other</option>
+                  </select>
                 </div>
 
                 {/* Call Type, Rate, and Urgency */}

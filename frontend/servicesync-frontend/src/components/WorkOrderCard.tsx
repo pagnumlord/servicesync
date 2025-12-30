@@ -1,7 +1,18 @@
 // WorkOrderCard.tsx - Updated with status-based borders and equipment/notes toggle
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { WorkOrder } from '../types';
-import { Clock, MapPin, User, Wrench, AlertTriangle, PlayCircle, StopCircle, Megaphone, Check, Pause } from 'lucide-react';
+import { Clock, MapPin, User, Wrench, AlertTriangle, PlayCircle, StopCircle, Megaphone, Check, Pause, Star, Award } from 'lucide-react';
+
+interface TechRecommendation {
+  technicianId: number;
+  firstName: string;
+  lastName: string;
+  crew: string;
+  rating: number;
+  totalJobs: number;
+  certified?: boolean;
+  source: 'performance_data' | 'manual_skill';
+}
 
 interface WorkOrderCardProps {
   workOrder: WorkOrder;
@@ -38,6 +49,41 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
   // Use a ref to track click timing for distinguishing single vs double clicks
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isHovered, setIsHovered] = useState(false);
+  const [recommendations, setRecommendations] = useState<TechRecommendation[]>([]);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
+
+  // Fetch tech recommendations when hovering over unassigned work order with equipment type
+  useEffect(() => {
+    const fetchRecommendations = async () => {
+      // Only show recommendations for unassigned work orders with equipment type
+      const isUnassigned = !workOrder.assigned_tech_id || workOrder.status === 'Open' || workOrder.status === 'Unassigned';
+      if (!isHovered || !isUnassigned || !workOrder.equipment_type) {
+        setShowTooltip(false);
+        return;
+      }
+
+      setLoadingRecommendations(true);
+      try {
+        const response = await fetch(
+          `http://localhost:5000/api/technicians/recommendations?equipmentType=${encodeURIComponent(workOrder.equipment_type)}&limit=3`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setRecommendations(data);
+          setShowTooltip(true);
+        }
+      } catch (error) {
+        console.error('Failed to load tech recommendations:', error);
+      } finally {
+        setLoadingRecommendations(false);
+      }
+    };
+
+    // Delay showing tooltip slightly to avoid flashing on quick hovers
+    const timeoutId = setTimeout(fetchRecommendations, 300);
+    return () => clearTimeout(timeoutId);
+  }, [isHovered, workOrder.assigned_tech_id, workOrder.status, workOrder.equipment_type]);
 
   // Get status-based border color (main visual indicator)
   const getStatusBorderColor = () => {
@@ -600,6 +646,94 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
               <StopCircle size={14} />
             </button>
           )}
+        </div>
+      )}
+
+      {/* Tech Recommendations Tooltip - Shows on hover for unassigned work orders */}
+      {showTooltip && recommendations.length > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            marginTop: '0.5rem',
+            backgroundColor: 'white',
+            border: '2px solid #3b82f6',
+            borderRadius: '0.5rem',
+            padding: '0.75rem',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)',
+            zIndex: 1000,
+            minWidth: '250px',
+            maxWidth: '300px'
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div style={{
+            fontSize: '0.75rem',
+            fontWeight: '700',
+            color: '#1e40af',
+            marginBottom: '0.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.375rem'
+          }}>
+            <Award size={14} />
+            Recommended for {workOrder.equipment_type}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+            {recommendations.map((rec, index) => (
+              <div
+                key={rec.technicianId}
+                style={{
+                  padding: '0.5rem',
+                  backgroundColor: '#f8fafc',
+                  borderRadius: '0.375rem',
+                  fontSize: '0.75rem'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontWeight: '600', color: '#1f2937' }}>
+                      #{index + 1} {rec.firstName} {rec.lastName}
+                      {rec.certified && (
+                        <span style={{
+                          marginLeft: '0.25rem',
+                          fontSize: '0.625rem',
+                          backgroundColor: '#10b981',
+                          color: 'white',
+                          padding: '0.0625rem 0.25rem',
+                          borderRadius: '0.125rem',
+                          fontWeight: '600'
+                        }}>
+                          CERT
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.688rem', color: '#6b7280' }}>
+                      {rec.crew}
+                      {rec.totalJobs > 0 && ` • ${rec.totalJobs} jobs`}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.125rem' }}>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star
+                        key={i}
+                        size={12}
+                        fill={i < Math.round(rec.rating) ? '#fbbf24' : 'none'}
+                        stroke={i < Math.round(rec.rating) ? '#fbbf24' : '#d1d5db'}
+                        strokeWidth={2}
+                      />
+                    ))}
+                    <span style={{ marginLeft: '0.25rem', fontSize: '0.75rem', fontWeight: '700', color: '#1f2937' }}>
+                      {rec.rating.toFixed(1)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
