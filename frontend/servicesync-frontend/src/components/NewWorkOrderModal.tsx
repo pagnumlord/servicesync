@@ -302,7 +302,7 @@ const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({
                 fontSize: '0.875rem',
                 fontWeight: '700'
               }}>1</div>
-              Who's Calling?
+              Which Customer?
             </h3>
 
             {!selectedCustomer ? (
@@ -426,12 +426,12 @@ const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({
                 {/* Contact Selection */}
                 <div style={{ marginTop: '1.5rem' }}>
                   <div style={{
-                    fontSize: '1rem',
-                    fontWeight: '600',
-                    color: '#374151',
+                    fontSize: '1.125rem',
+                    fontWeight: '700',
+                    color: '#111827',
                     marginBottom: '0.75rem'
                   }}>
-                    Contact Person
+                    Who's Calling?
                   </div>
 
                   {contacts.length === 0 && !showAddContact ? (
@@ -1099,33 +1099,156 @@ const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({
                   Assign Technician (Optional)
                 </h3>
 
-                <select
-                  value={workOrder.assignedTechId}
-                  onChange={(e) => setWorkOrder({ ...workOrder, assignedTechId: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '0.875rem',
-                    border: '2px solid #E5E7EB',
-                    borderRadius: '0.75rem',
-                    fontSize: '0.9375rem',
-                    backgroundColor: 'white',
-                    cursor: 'pointer',
-                    outline: 'none',
-                    appearance: 'none',
-                    backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                    backgroundPosition: 'right 0.5rem center',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundSize: '1.5em 1.5em',
-                    paddingRight: '2.5rem'
-                  }}
-                >
-                  <option value="">Unassigned (will go to dispatch board)</option>
-                  {technicians.map((tech) => (
-                    <option key={tech.id} value={tech.id}>
-                      {tech.first_name} {tech.last_name} - Crew {tech.crew || 'No Crew'}
-                    </option>
-                  ))}
-                </select>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                  gap: '0.75rem'
+                }}>
+                  {/* Unassigned Option */}
+                  <div
+                    onClick={() => setWorkOrder({ ...workOrder, assignedTechId: '' })}
+                    style={{
+                      padding: '1rem',
+                      border: workOrder.assignedTechId === '' ? '3px solid #3B82F6' : '2px solid #E5E7EB',
+                      borderRadius: '0.75rem',
+                      cursor: 'pointer',
+                      backgroundColor: workOrder.assignedTechId === '' ? '#EFF6FF' : 'white',
+                      transition: 'all 0.2s',
+                      position: 'relative',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem'
+                    }}
+                  >
+                    {workOrder.assignedTechId === '' && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '0.5rem',
+                        right: '0.5rem',
+                        backgroundColor: '#3B82F6',
+                        borderRadius: '50%',
+                        padding: '0.25rem',
+                        display: 'flex'
+                      }}>
+                        <CheckCircle2 size={14} color="white" />
+                      </div>
+                    )}
+                    <div style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      backgroundColor: '#F3F4F6',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '1.25rem'
+                    }}>
+                      📋
+                    </div>
+                    <div>
+                      <div style={{
+                        fontWeight: '700',
+                        fontSize: '0.9375rem',
+                        color: '#111827'
+                      }}>
+                        Unassigned
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>
+                        Dispatch board
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Technician Cards */}
+                  {technicians.slice(0, 8).map((tech) => {
+                    const initials = `${tech.first_name?.[0] || ''}${tech.last_name?.[0] || ''}`.toUpperCase();
+                    const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+                    const colorIndex = tech.id % colors.length;
+                    const bgColor = colors[colorIndex];
+
+                    return (
+                      <div
+                        key={tech.id}
+                        onClick={() => setWorkOrder({ ...workOrder, assignedTechId: String(tech.id) })}
+                        style={{
+                          padding: '1rem',
+                          border: workOrder.assignedTechId === String(tech.id) ? `3px solid ${bgColor}` : '2px solid #E5E7EB',
+                          borderRadius: '0.75rem',
+                          cursor: 'pointer',
+                          backgroundColor: workOrder.assignedTechId === String(tech.id) ? `${bgColor}10` : 'white',
+                          transition: 'all 0.2s',
+                          position: 'relative',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.75rem'
+                        }}
+                      >
+                        {workOrder.assignedTechId === String(tech.id) && (
+                          <div style={{
+                            position: 'absolute',
+                            top: '0.5rem',
+                            right: '0.5rem',
+                            backgroundColor: bgColor,
+                            borderRadius: '50%',
+                            padding: '0.25rem',
+                            display: 'flex'
+                          }}>
+                            <CheckCircle2 size={14} color="white" />
+                          </div>
+                        )}
+                        <div style={{
+                          width: '40px',
+                          height: '40px',
+                          borderRadius: '50%',
+                          backgroundColor: bgColor,
+                          color: 'white',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.875rem',
+                          fontWeight: '700'
+                        }}>
+                          {initials}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            fontWeight: '700',
+                            fontSize: '0.9375rem',
+                            color: '#111827',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
+                            {tech.first_name} {tech.last_name}
+                          </div>
+                          <div style={{
+                            fontSize: '0.75rem',
+                            color: '#6B7280',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
+                            Crew {tech.crew || 'None'}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {technicians.length > 8 && (
+                  <div style={{
+                    marginTop: '0.75rem',
+                    padding: '0.75rem',
+                    backgroundColor: '#F9FAFB',
+                    borderRadius: '0.5rem',
+                    textAlign: 'center',
+                    fontSize: '0.875rem',
+                    color: '#6B7280'
+                  }}>
+                    Showing first 8 technicians. Leave unassigned to see all options on dispatch board.
+                  </div>
+                )}
               </div>
             </>
           )}
