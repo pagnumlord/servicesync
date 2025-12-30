@@ -370,7 +370,7 @@ const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({
                           {customer.name}
                         </div>
                         <div style={{ fontSize: '0.875rem', color: '#6B7280' }}>
-                          {customer.service_address}, {customer.service_city}, {customer.service_state} {customer.service_zip}
+                          {customer.service_address_line1}, {customer.service_city}, {customer.service_state} {customer.service_zip}
                         </div>
                       </div>
                     ))}
@@ -393,7 +393,7 @@ const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({
                         {selectedCustomer.name}
                       </div>
                       <div style={{ fontSize: '0.875rem', color: '#374151', lineHeight: '1.5' }}>
-                        {selectedCustomer.service_address}<br />
+                        {selectedCustomer.service_address_line1}<br />
                         {selectedCustomer.service_city}, {selectedCustomer.service_state} {selectedCustomer.service_zip}
                       </div>
                       {selectedCustomer.phone && (
@@ -1122,7 +1122,7 @@ const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({
                   <option value="">Unassigned (will go to dispatch board)</option>
                   {technicians.map((tech) => (
                     <option key={tech.id} value={tech.id}>
-                      {tech.name} - Zone {tech.zone || 'No Zone'}
+                      {tech.first_name} {tech.last_name} - Crew {tech.crew || 'No Crew'}
                     </option>
                   ))}
                 </select>
