@@ -149,6 +149,7 @@ function ICUDispatchBoard({
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
   const [quickPreviewWorkOrder, setQuickPreviewWorkOrder] = useState<WorkOrder | null>(null);
   const [showQuickWorkOrderForm, setShowQuickWorkOrderForm] = useState(false);
+  const [selectedWorkOrder, setSelectedWorkOrder] = useState<EnhancedWorkOrder | null>(null);
 
   // Enhanced WebSocket connection
   const {
@@ -557,21 +558,6 @@ function ICUDispatchBoard({
     }
   };
 
-  // Action button handlers
-  const handleActivate = (workOrder: EnhancedWorkOrder) => {
-    // Activate is similar to check-in - starts the work order
-    handleCheckIn(workOrder);
-  };
-
-  const handleCompleteAction = (workOrder: EnhancedWorkOrder) => {
-    setSelectedWorkOrderForCompletion(workOrder);
-    setShowQueueModal(true);
-  };
-
-  const handleSuspendAction = (workOrder: EnhancedWorkOrder) => {
-    handleSuspendWorkOrder(workOrder, 'Suspended from dispatch board');
-  };
-
   // Handle tech check-in
   const handleCheckIn = async (workOrder: EnhancedWorkOrder) => {
     if (!workOrder?.id) return;
@@ -857,6 +843,131 @@ function ICUDispatchBoard({
             🔄 {displayFormat === 'wo_number' ? 'WO#' : displayFormat === 'location' ? 'County' : 'Type'}
           </button>
 
+          {/* Action Buttons - Only visible when a work order is selected */}
+          {selectedWorkOrder && (
+            <div style={{
+              display: 'flex',
+              gap: '0.375rem',
+              marginRight: '0.75rem',
+              paddingRight: '0.75rem',
+              borderRight: '1px solid rgba(255, 255, 255, 0.2)'
+            }}>
+              {/* Complete Button */}
+              {selectedWorkOrder.status !== 'Complete' && selectedWorkOrder.status !== 'Completed' && (
+                <button
+                  onClick={() => {
+                    setSelectedWorkOrderForCompletion(selectedWorkOrder);
+                    setShowQueueModal(true);
+                  }}
+                  title="Complete Work Order"
+                  style={{
+                    backgroundColor: '#10B981',
+                    color: 'white',
+                    border: 'none',
+                    padding: '0.5rem 0.875rem',
+                    borderRadius: '0.5rem',
+                    cursor: 'pointer',
+                    fontSize: '0.75rem',
+                    fontWeight: '600',
+                    boxShadow: '0 2px 4px rgba(16, 185, 129, 0.3)',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.375rem'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#059669'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#10B981'}
+                >
+                  ✓ Complete
+                </button>
+              )}
+
+              {/* Suspend Button */}
+              {selectedWorkOrder.status !== 'Suspended' && selectedWorkOrder.status !== 'Complete' && selectedWorkOrder.status !== 'Completed' && (
+                <button
+                  onClick={() => handleSuspendWorkOrder(selectedWorkOrder, 'Suspended from dispatch board')}
+                  title="Suspend Work Order"
+                  style={{
+                    backgroundColor: '#F59E0B',
+                    color: 'white',
+                    border: 'none',
+                    padding: '0.5rem 0.875rem',
+                    borderRadius: '0.5rem',
+                    cursor: 'pointer',
+                    fontSize: '0.75rem',
+                    fontWeight: '600',
+                    boxShadow: '0 2px 4px rgba(245, 158, 11, 0.3)',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.375rem'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#D97706'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#F59E0B'}
+                >
+                  ⏸ Suspend
+                </button>
+              )}
+
+              {/* Resume Button (for suspended work orders) */}
+              {selectedWorkOrder.status === 'Suspended' && selectedWorkOrder.assigned_tech_id && (
+                <button
+                  onClick={() => handleResumeWorkOrder(selectedWorkOrder, selectedWorkOrder.assigned_tech_id!)}
+                  title="Resume Work Order"
+                  style={{
+                    backgroundColor: '#3B82F6',
+                    color: 'white',
+                    border: 'none',
+                    padding: '0.5rem 0.875rem',
+                    borderRadius: '0.5rem',
+                    cursor: 'pointer',
+                    fontSize: '0.75rem',
+                    fontWeight: '600',
+                    boxShadow: '0 2px 4px rgba(59, 130, 246, 0.3)',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.375rem'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563EB'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3B82F6'}
+                >
+                  ▶ Resume
+                </button>
+              )}
+
+              {/* Selected WO Info */}
+              <div style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                padding: '0.5rem 0.875rem',
+                borderRadius: '0.5rem',
+                fontSize: '0.75rem',
+                fontWeight: '600',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.375rem'
+              }}>
+                {selectedWorkOrder.wo_number || `WO-${selectedWorkOrder.id}`}
+                <button
+                  onClick={() => setSelectedWorkOrder(null)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'white',
+                    cursor: 'pointer',
+                    padding: '0',
+                    fontSize: '1rem',
+                    lineHeight: '1'
+                  }}
+                  title="Deselect"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Info display toggle - more compact */}
           <div style={{
             display: 'flex',
@@ -1085,15 +1196,13 @@ function ICUDispatchBoard({
                             showEquipment={infoDisplayMode === 'equipment'}
                             displayFormat={displayFormat}
                             hideTechName={false}
-                            onQuickView={setQuickPreviewWorkOrder}
+                            onQuickView={setSelectedWorkOrder}
                             onOpenDetails={handleWorkOrderSelect}
                             onContextMenu={(e) => handleContextMenu(e, workOrder)}
                             onCheckIn={handleCheckIn}
                             onCheckOut={handleCheckOut}
                             showCheckInOut={true}
-                            onActivate={handleActivate}
-                            onComplete={handleCompleteAction}
-                            onSuspend={handleSuspendAction}
+                            isSelected={selectedWorkOrder?.id === workOrder.id}
                           />
                         </div>
                       ))}
@@ -1174,15 +1283,13 @@ function ICUDispatchBoard({
                             showEquipment={infoDisplayMode === 'equipment'}
                             displayFormat={displayFormat}
                             hideTechName={true}
-                            onQuickView={setQuickPreviewWorkOrder}
+                            onQuickView={setSelectedWorkOrder}
                             onOpenDetails={handleWorkOrderSelect}
                             onContextMenu={(e) => handleContextMenu(e, workOrder)}
                             onCheckIn={handleCheckIn}
                             onCheckOut={handleCheckOut}
                             showCheckInOut={true}
-                            onActivate={handleActivate}
-                            onComplete={handleCompleteAction}
-                            onSuspend={handleSuspendAction}
+                            isSelected={selectedWorkOrder?.id === workOrder.id}
                           />
                         </div>
                       ))}
@@ -1262,15 +1369,13 @@ function ICUDispatchBoard({
                             showEquipment={infoDisplayMode === 'equipment'}
                             displayFormat={displayFormat}
                             hideTechName={true}
-                            onQuickView={setQuickPreviewWorkOrder}
+                            onQuickView={setSelectedWorkOrder}
                             onOpenDetails={handleWorkOrderSelect}
                             onContextMenu={(e) => handleContextMenu(e, workOrder)}
                             onCheckIn={handleCheckIn}
                             onCheckOut={handleCheckOut}
                             showCheckInOut={true}
-                            onActivate={handleActivate}
-                            onComplete={handleCompleteAction}
-                            onSuspend={handleSuspendAction}
+                            isSelected={selectedWorkOrder?.id === workOrder.id}
                           />
                         </div>
                       ))}
@@ -1303,12 +1408,10 @@ function ICUDispatchBoard({
                   setDragOverTarget={setDragOverTarget}
                   infoDisplayMode={infoDisplayMode}
                   displayFormat={displayFormat}
-                  setQuickPreviewWorkOrder={setQuickPreviewWorkOrder}
+                  selectedWorkOrder={selectedWorkOrder}
+                  setSelectedWorkOrder={setSelectedWorkOrder}
                   onCheckIn={handleCheckIn}
                   onCheckOut={handleCheckOut}
-                  onActivate={handleActivate}
-                  onComplete={handleCompleteAction}
-                  onSuspend={handleSuspendAction}
                 />
               ))}
             </div>
@@ -1481,12 +1584,10 @@ interface TechnicianColumnProps {
   setDragOverTarget: (target: string | null) => void;
   infoDisplayMode?: 'equipment' | 'notes';
   displayFormat?: 'wo_number' | 'location' | 'call_type';
-  setQuickPreviewWorkOrder: (workOrder: WorkOrder | null) => void;
+  selectedWorkOrder: EnhancedWorkOrder | null;
+  setSelectedWorkOrder: (workOrder: EnhancedWorkOrder | null) => void;
   onCheckIn: (workOrder: EnhancedWorkOrder) => void;
   onCheckOut: (workOrder: EnhancedWorkOrder) => void;
-  onActivate?: (workOrder: EnhancedWorkOrder) => void;
-  onComplete?: (workOrder: EnhancedWorkOrder) => void;
-  onSuspend?: (workOrder: EnhancedWorkOrder) => void;
 }
 
 function TechnicianColumn({
@@ -1501,12 +1602,10 @@ function TechnicianColumn({
   setDragOverTarget,
   infoDisplayMode = 'equipment',
   displayFormat = 'wo_number',
-  setQuickPreviewWorkOrder,
+  selectedWorkOrder,
+  setSelectedWorkOrder,
   onCheckIn,
-  onCheckOut,
-  onActivate,
-  onComplete,
-  onSuspend
+  onCheckOut
 }: TechnicianColumnProps) {
   
   const workOrders = technician.workOrders || technician.work_orders || [];
@@ -1632,14 +1731,12 @@ function TechnicianColumn({
         cardHeight="125px" // Snug fit for one WO card
         infoDisplayMode={infoDisplayMode}
         displayFormat={displayFormat}
-        setQuickPreviewWorkOrder={setQuickPreviewWorkOrder}
+        setSelectedWorkOrder={setSelectedWorkOrder}
+        selectedWorkOrderId={selectedWorkOrder?.id}
         isFirstAM={true}
         preventScroll={true} // Add this to prevent First AM from scrolling
         onCheckIn={onCheckIn}
         onCheckOut={onCheckOut}
-        onActivate={onActivate}
-        onComplete={onComplete}
-        onSuspend={onSuspend}
       />
 
       {/* Unscheduled Slot - FLEXIBLE HEIGHT */}
@@ -1660,13 +1757,11 @@ function TechnicianColumn({
         flex={true}
         infoDisplayMode={infoDisplayMode}
         displayFormat={displayFormat}
-        setQuickPreviewWorkOrder={setQuickPreviewWorkOrder}
+        setSelectedWorkOrder={setSelectedWorkOrder}
+        selectedWorkOrderId={selectedWorkOrder?.id}
         isFirstAM={false}
         onCheckIn={onCheckIn}
         onCheckOut={onCheckOut}
-        onActivate={onActivate}
-        onComplete={onComplete}
-        onSuspend={onSuspend}
       />
     </div>
   );
@@ -1691,14 +1786,12 @@ interface CompactTimeSlotProps {
   flex?: boolean;
   infoDisplayMode?: 'equipment' | 'notes';
   displayFormat?: 'wo_number' | 'location' | 'call_type';
-  setQuickPreviewWorkOrder: (workOrder: WorkOrder | null) => void;
+  setSelectedWorkOrder: (workOrder: EnhancedWorkOrder | null) => void;
+  selectedWorkOrderId?: number | null;
   isFirstAM?: boolean;
   preventScroll?: boolean; // Add new prop for preventing scroll
   onCheckIn: (workOrder: EnhancedWorkOrder) => void;
   onCheckOut: (workOrder: EnhancedWorkOrder) => void;
-  onActivate?: (workOrder: EnhancedWorkOrder) => void;
-  onComplete?: (workOrder: EnhancedWorkOrder) => void;
-  onSuspend?: (workOrder: EnhancedWorkOrder) => void;
 }
 
 function CompactTimeSlot({
@@ -1719,14 +1812,12 @@ function CompactTimeSlot({
   flex = false,
   infoDisplayMode = 'equipment',
   displayFormat = 'wo_number',
-  setQuickPreviewWorkOrder,
+  setSelectedWorkOrder,
+  selectedWorkOrderId,
   isFirstAM = false,
   preventScroll = false, // Add new parameter
   onCheckIn,
-  onCheckOut,
-  onActivate,
-  onComplete,
-  onSuspend
+  onCheckOut
 }: CompactTimeSlotProps) {
   const isDragOver = dragOverTarget === targetId;
 
@@ -1840,15 +1931,13 @@ function CompactTimeSlot({
                   showEquipment={infoDisplayMode === 'equipment'}
                   displayFormat={displayFormat}
                   hideTechName={true}
-                  onQuickView={setQuickPreviewWorkOrder}
+                  onQuickView={setSelectedWorkOrder}
                   onOpenDetails={onWorkOrderSelect}
                   onContextMenu={(e) => onWorkOrderContextMenu(e, workOrder)}
                   onCheckIn={onCheckIn}
                   onCheckOut={onCheckOut}
                   showCheckInOut={true}
-                  onActivate={onActivate}
-                  onComplete={onComplete}
-                  onSuspend={onSuspend}
+                  isSelected={selectedWorkOrderId === workOrder.id}
                 />
               </div>
             ))}

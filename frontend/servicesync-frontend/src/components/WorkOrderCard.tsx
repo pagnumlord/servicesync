@@ -25,9 +25,7 @@ interface WorkOrderCardProps {
   onCheckIn?: (workOrder: WorkOrder) => void;
   onCheckOut?: (workOrder: WorkOrder) => void;
   showCheckInOut?: boolean;
-  onActivate?: (workOrder: WorkOrder) => void;
-  onComplete?: (workOrder: WorkOrder) => void;
-  onSuspend?: (workOrder: WorkOrder) => void;
+  isSelected?: boolean;
 }
 
 const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
@@ -41,9 +39,7 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
   onCheckIn,
   onCheckOut,
   showCheckInOut = false,
-  onActivate,
-  onComplete,
-  onSuspend
+  isSelected = false
 }) => {
 
   // Use a ref to track click timing for distinguishing single vs double clicks
@@ -228,7 +224,7 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
       onContextMenu={(e) => onContextMenu?.(e, workOrder)}
       style={{
         backgroundColor: getZoneBackgroundColor(),
-        border: `2px solid ${getStatusBorderColor()}`,
+        border: isSelected ? `3px solid #2563EB` : `2px solid ${getStatusBorderColor()}`,
         borderRadius: '0.5rem',
         padding: '0.75rem',
         cursor: 'pointer',
@@ -236,7 +232,7 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
         fontSize: '0.875rem',
         position: 'relative',
         userSelect: 'none',
-        boxShadow: getUrgencyGlow()
+        boxShadow: isSelected ? '0 0 0 3px #3B82F620, 0 4px 6px -1px rgba(0, 0, 0, 0.1)' : getUrgencyGlow()
       }}
       onMouseEnter={(e) => {
         setIsHovered(true);
@@ -444,126 +440,6 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
             color={workOrder.call_urgency === 'Emergency' ? '#DC2626' : '#F59E0B'}
             fill={workOrder.call_urgency === 'Emergency' ? '#DC2626' : '#F59E0B'}
           />
-        </div>
-      )}
-
-      {/* Action Buttons - Activate, Complete, Suspend - Always visible in header */}
-      {(onActivate || onComplete || onSuspend) && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '0.5rem',
-            right: '0.5rem',
-            display: 'flex',
-            gap: '0.25rem',
-            zIndex: 10
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {onActivate && workOrder.status !== 'In Progress' && workOrder.status !== 'Complete' && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onActivate(workOrder);
-              }}
-              title="Activate"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '28px',
-                height: '28px',
-                padding: 0,
-                color: 'white',
-                backgroundColor: '#3B82F6',
-                border: '1px solid white',
-                borderRadius: '0.375rem',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#2563EB';
-                e.currentTarget.style.transform = 'scale(1.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#3B82F6';
-                e.currentTarget.style.transform = 'scale(1)';
-              }}
-            >
-              <Megaphone size={16} />
-            </button>
-          )}
-
-          {onSuspend && workOrder.status !== 'Suspended' && workOrder.status !== 'Complete' && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onSuspend(workOrder);
-              }}
-              title="Suspend"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '28px',
-                height: '28px',
-                padding: 0,
-                color: 'white',
-                backgroundColor: '#F59E0B',
-                border: '1px solid white',
-                borderRadius: '0.375rem',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#D97706';
-                e.currentTarget.style.transform = 'scale(1.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#F59E0B';
-                e.currentTarget.style.transform = 'scale(1)';
-              }}
-            >
-              <Pause size={16} />
-            </button>
-          )}
-
-          {onComplete && workOrder.status !== 'Complete' && workOrder.status !== 'Completed' && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onComplete(workOrder);
-              }}
-              title="Complete"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '28px',
-                height: '28px',
-                padding: 0,
-                color: 'white',
-                backgroundColor: '#10B981',
-                border: '1px solid white',
-                borderRadius: '0.375rem',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#059669';
-                e.currentTarget.style.transform = 'scale(1.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#10B981';
-                e.currentTarget.style.transform = 'scale(1)';
-              }}
-            >
-              <Check size={16} />
-            </button>
-          )}
         </div>
       )}
 
