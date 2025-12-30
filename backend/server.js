@@ -1406,10 +1406,11 @@ app.post('/api/work-orders', async (req, res) => {
     const {
       customerId: customerIdRaw,
       equipmentId: equipmentIdRaw,
+      equipmentType,
       problemDescription,
       priority = 'Normal',
       callRate = 'RT',
-      callUrgency = 'Default', 
+      callUrgency = 'Default',
       callType = 'Time and Material',
       scheduledDate,
       scheduledTimeSlot,
@@ -1450,7 +1451,7 @@ app.post('/api/work-orders', async (req, res) => {
 
     // THIRD: Get customer info (AFTER customerId is declared and validated)
     const customerResult = await client.query(`
-      SELECT name, service_address_line1, service_city, service_state, service_zip, zone, primary_contact_phone
+      SELECT name, service_address, service_city, service_state, service_zip, zone, phone
       FROM customers WHERE id = $1
     `, [customerId]);
 
@@ -1473,32 +1474,32 @@ app.post('/api/work-orders', async (req, res) => {
     // FIFTH: NOW customer is properly defined - proceed with INSERT
     const result = await client.query(`
       INSERT INTO work_orders (
-        wo_number, customer_id, customer_name, service_address, service_city, 
-        service_state, service_zip, customer_zone, phone, equipment_id,
-        problem_description, priority, call_rate, call_urgency, call_type, 
-        status, scheduled_date, scheduled_time_slot, assigned_tech_id, 
+        wo_number, customer_id, customer_name, service_address, service_city,
+        service_state, service_zip, customer_zone, phone, equipment_id, equipment_type,
+        problem_description, call_rate, call_urgency, call_type,
+        status, scheduled_date, scheduled_time_slot, assigned_tech_id,
         customer_po, created_at
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
         $16, $17, $18, $19, $20, CURRENT_TIMESTAMP
       ) RETURNING *
     `, [
-      woNumber, 
-      customerId, 
-      customer.name, 
-      customer.service_address_line1,
-      customer.service_city, 
-      customer.service_state, 
+      woNumber,
+      customerId,
+      customer.name,
+      customer.service_address,
+      customer.service_city,
+      customer.service_state,
       customer.service_zip,
-      customer.zone, 
-      customer.primary_contact_phone, 
+      customer.zone,
+      customer.phone,
       equipmentId,
+      equipmentType || null,
       problemDescription.trim(),
-      priority, 
       callRate,
       callUrgency,
       callType,
-      'Open', 
+      'Open',
       scheduledDate || null,
       scheduledTimeSlot || null,
       assignedTechId,

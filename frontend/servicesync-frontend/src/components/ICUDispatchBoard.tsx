@@ -977,7 +977,7 @@ function ICUDispatchBoard({
             <div style={{
               width: '36px',
               backgroundColor: '#F9FAFB',
-              borderRight: '1px solid #E5E7EB',
+              borderRight: '2px solid #E5E7EB',
               display: 'flex',
               flexDirection: 'column',
               paddingTop: '0.5rem'
@@ -1009,7 +1009,7 @@ function ICUDispatchBoard({
               flexDirection: 'column',
               height: '100%',
               overflow: 'hidden',
-              borderRight: '1px solid #E5E7EB'
+              borderRight: '2px solid #E5E7EB'
             }}>
               {/* Unassigned Section - Compact */}
               <div style={{
@@ -1538,7 +1538,7 @@ function TechnicianColumn({
         backgroundColor: 'white',
         padding: '0.875rem',
         borderRadius: '0.75rem',
-        border: '1px solid #E5E7EB',
+        border: '2px solid #E5E7EB',
         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.05)'
       }}>
         {technician.profile_image ? (
