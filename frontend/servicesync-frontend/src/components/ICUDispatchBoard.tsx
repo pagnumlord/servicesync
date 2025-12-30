@@ -1196,7 +1196,10 @@ function ICUDispatchBoard({
                             showEquipment={infoDisplayMode === 'equipment'}
                             displayFormat={displayFormat}
                             hideTechName={false}
-                            onQuickView={setSelectedWorkOrder}
+                            onQuickView={(wo) => {
+                              setSelectedWorkOrder(wo);
+                              setQuickPreviewWorkOrder(wo);
+                            }}
                             onOpenDetails={handleWorkOrderSelect}
                             onContextMenu={(e) => handleContextMenu(e, workOrder)}
                             onCheckIn={handleCheckIn}
@@ -1283,7 +1286,10 @@ function ICUDispatchBoard({
                             showEquipment={infoDisplayMode === 'equipment'}
                             displayFormat={displayFormat}
                             hideTechName={true}
-                            onQuickView={setSelectedWorkOrder}
+                            onQuickView={(wo) => {
+                              setSelectedWorkOrder(wo);
+                              setQuickPreviewWorkOrder(wo);
+                            }}
                             onOpenDetails={handleWorkOrderSelect}
                             onContextMenu={(e) => handleContextMenu(e, workOrder)}
                             onCheckIn={handleCheckIn}
@@ -1369,7 +1375,10 @@ function ICUDispatchBoard({
                             showEquipment={infoDisplayMode === 'equipment'}
                             displayFormat={displayFormat}
                             hideTechName={true}
-                            onQuickView={setSelectedWorkOrder}
+                            onQuickView={(wo) => {
+                              setSelectedWorkOrder(wo);
+                              setQuickPreviewWorkOrder(wo);
+                            }}
                             onOpenDetails={handleWorkOrderSelect}
                             onContextMenu={(e) => handleContextMenu(e, workOrder)}
                             onCheckIn={handleCheckIn}
@@ -1410,6 +1419,7 @@ function ICUDispatchBoard({
                   displayFormat={displayFormat}
                   selectedWorkOrder={selectedWorkOrder}
                   setSelectedWorkOrder={setSelectedWorkOrder}
+                  setQuickPreviewWorkOrder={setQuickPreviewWorkOrder}
                   onCheckIn={handleCheckIn}
                   onCheckOut={handleCheckOut}
                 />
@@ -1586,6 +1596,7 @@ interface TechnicianColumnProps {
   displayFormat?: 'wo_number' | 'location' | 'call_type';
   selectedWorkOrder: EnhancedWorkOrder | null;
   setSelectedWorkOrder: (workOrder: EnhancedWorkOrder | null) => void;
+  setQuickPreviewWorkOrder: (workOrder: WorkOrder | null) => void;
   onCheckIn: (workOrder: EnhancedWorkOrder) => void;
   onCheckOut: (workOrder: EnhancedWorkOrder) => void;
 }
@@ -1604,6 +1615,7 @@ function TechnicianColumn({
   displayFormat = 'wo_number',
   selectedWorkOrder,
   setSelectedWorkOrder,
+  setQuickPreviewWorkOrder,
   onCheckIn,
   onCheckOut
 }: TechnicianColumnProps) {
@@ -1731,7 +1743,11 @@ function TechnicianColumn({
         cardHeight="125px" // Snug fit for one WO card
         infoDisplayMode={infoDisplayMode}
         displayFormat={displayFormat}
-        setSelectedWorkOrder={setSelectedWorkOrder}
+        setSelectedWorkOrder={(wo) => {
+          setSelectedWorkOrder(wo);
+          setQuickPreviewWorkOrder(wo);
+        }}
+        setQuickPreviewWorkOrder={setQuickPreviewWorkOrder}
         selectedWorkOrderId={selectedWorkOrder?.id}
         isFirstAM={true}
         preventScroll={true} // Add this to prevent First AM from scrolling
@@ -1757,7 +1773,11 @@ function TechnicianColumn({
         flex={true}
         infoDisplayMode={infoDisplayMode}
         displayFormat={displayFormat}
-        setSelectedWorkOrder={setSelectedWorkOrder}
+        setSelectedWorkOrder={(wo) => {
+          setSelectedWorkOrder(wo);
+          setQuickPreviewWorkOrder(wo);
+        }}
+        setQuickPreviewWorkOrder={setQuickPreviewWorkOrder}
         selectedWorkOrderId={selectedWorkOrder?.id}
         isFirstAM={false}
         onCheckIn={onCheckIn}
@@ -1787,6 +1807,7 @@ interface CompactTimeSlotProps {
   infoDisplayMode?: 'equipment' | 'notes';
   displayFormat?: 'wo_number' | 'location' | 'call_type';
   setSelectedWorkOrder: (workOrder: EnhancedWorkOrder | null) => void;
+  setQuickPreviewWorkOrder: (workOrder: WorkOrder | null) => void;
   selectedWorkOrderId?: number | null;
   isFirstAM?: boolean;
   preventScroll?: boolean; // Add new prop for preventing scroll
@@ -1813,6 +1834,7 @@ function CompactTimeSlot({
   infoDisplayMode = 'equipment',
   displayFormat = 'wo_number',
   setSelectedWorkOrder,
+  setQuickPreviewWorkOrder,
   selectedWorkOrderId,
   isFirstAM = false,
   preventScroll = false, // Add new parameter
