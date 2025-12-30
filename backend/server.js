@@ -4722,23 +4722,42 @@ app.delete('/api/customers/:customerId/notes/:noteId', async (req, res) => {
 app.get('/api/customers/:id/equipment', async (req, res) => {
   try {
     const { id } = req.params;
-    
+    console.log(`🔧 Getting equipment for customer ID: ${id}`);
+
+    // Check if equipment table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = 'equipment'
+      );
+    `);
+
+    if (!tableCheck.rows[0].exists) {
+      console.log('⚠️ Equipment table does not exist, returning empty array');
+      return res.json({
+        customer_id: parseInt(id),
+        equipment: [],
+        total_count: 0
+      });
+    }
+
     const result = await pool.query(`
-      SELECT 
+      SELECT
         e.*,
         (SELECT COUNT(*) FROM work_orders wo WHERE wo.equipment_id = e.id) as work_order_count
       FROM equipment e
       WHERE e.customer_id = $1 AND e.is_active = true
       ORDER BY e.equipment_number, e.equipment_type
     `, [id]);
-    
+
+    console.log(`✅ Found ${result.rows.length} equipment items`);
     res.json({
       customer_id: parseInt(id),
       equipment: result.rows,
       total_count: result.rows.length
     });
   } catch (error) {
-    console.error('Error fetching customer equipment:', error);
+    console.error('❌ Error fetching customer equipment:', error);
     res.status(500).json({ error: 'Failed to fetch equipment' });
   }
 });

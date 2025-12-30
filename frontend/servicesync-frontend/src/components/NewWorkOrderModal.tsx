@@ -124,7 +124,9 @@ const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({
       const response = await fetch(`http://localhost:5000/api/customers/${customerId}/equipment`);
       if (response.ok) {
         const data = await response.json();
-        setCustomerEquipment(data);
+        // Handle both array response and object response
+        const equipmentArray = Array.isArray(data) ? data : (data.equipment || []);
+        setCustomerEquipment(equipmentArray);
       }
     } catch (error) {
       console.error('Error fetching equipment:', error);
