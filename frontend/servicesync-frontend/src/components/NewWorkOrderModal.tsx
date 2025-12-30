@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, X, AlertCircle, User, Wrench, Calendar, Clock, FileText, Plus } from 'lucide-react';
+import { Search, X, AlertCircle, User, Wrench, Phone, Mail, Plus, CheckCircle2 } from 'lucide-react';
 import { Customer, Technician } from '../types';
-
 
 interface Equipment {
   id: number;
@@ -10,6 +9,17 @@ interface Equipment {
   location_description: string;
 }
 
+interface Contact {
+  id: number;
+  customer_id: number;
+  first_name: string;
+  last_name: string;
+  title?: string;
+  role?: string;
+  phone?: string;
+  email?: string;
+  is_primary: boolean;
+}
 
 interface NewWorkOrderModalProps {
   isOpen: boolean;
@@ -19,691 +29,176 @@ interface NewWorkOrderModalProps {
   preSelectedCustomer?: Customer;
 }
 
-// Customer Search Component
-const CustomerSearch: React.FC<{
-  onCustomerSelected: (customer: Customer) => void;
-  onCreateNew: () => void;
-}> = ({ onCustomerSelected, onCreateNew }) => {
+const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({
+  isOpen,
+  onClose,
+  onSave,
+  technicians,
+  preSelectedCustomer
+}) => {
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(preSelectedCustomer || null);
   const [searchQuery, setSearchQuery] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [searchPerformed, setSearchPerformed] = useState(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Debounced search with abort controller
-  useEffect(() => {
-    const performSearch = async () => {
-      if (!searchQuery.trim() || searchQuery.trim().length < 2) {
-        setCustomers([]);
-        setSearchPerformed(false);
-        return;
-      }
-
-      // Cancel previous request
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-
-      const abortController = new AbortController();
-      abortControllerRef.current = abortController;
-
-      setLoading(true);
-      try {
-        const response = await fetch(
-          `http://localhost:5000/api/customers/search?q=${encodeURIComponent(searchQuery.trim())}`,
-          { signal: abortController.signal }
-        );
-        
-        if (response.ok && !abortController.signal.aborted) {
-          const results = await response.json();
-          setCustomers(results);
-          setSearchPerformed(true);
-        }
-      } catch (error: any) {
-        if (error.name !== 'AbortError') {
-          console.error('Customer search error:', error);
-          setCustomers([]);
-          setSearchPerformed(true);
-        }
-      } finally {
-        if (!abortController.signal.aborted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    const timeoutId = setTimeout(performSearch, 300);
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, []);
-
-  return (
-    <div>
-      <div style={{ marginBottom: '1rem' }}>
-        <label style={{ 
-          display: 'block', 
-          fontSize: '0.875rem', 
-          fontWeight: '500', 
-          color: '#374151',
-          marginBottom: '0.5rem'
-        }}>
-          Search Customer
-        </label>
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Type customer name, number, or contact..."
-          autoFocus
-          style={{
-            width: '100%',
-            padding: '0.75rem',
-            border: '1px solid #d1d5db',
-            borderRadius: '0.375rem',
-            fontSize: '0.875rem'
-          }}
-        />
-        {loading && (
-          <div style={{ color: '#6b7280', fontSize: '0.875rem', marginTop: '0.5rem' }}>
-            Searching...
-          </div>
-        )}
-      </div>
-
-      {searchPerformed && customers.length > 0 && (
-        <div style={{ marginBottom: '1rem' }}>
-          <h3 style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem', color: '#374151' }}>
-            Found {customers.length} customer{customers.length !== 1 ? 's' : ''}:
-          </h3>
-          <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-            {customers.map(customer => (
-              <div
-                key={customer.id}
-                onClick={() => onCustomerSelected(customer)}
-                style={{
-                  padding: '0.75rem',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '0.375rem',
-                  marginBottom: '0.5rem',
-                  cursor: 'pointer',
-                  backgroundColor: 'white',
-                  transition: 'background-color 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
-              >
-                <div style={{ fontWeight: '600', color: '#1f2937' }}>{customer.name}</div>
-                <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                  {customer.service_city}
-                  {customer.primary_contact_name && ` • ${customer.primary_contact_name}`}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {searchPerformed && customers.length === 0 && searchQuery.trim().length >= 2 && (
-        <div style={{ 
-          textAlign: 'center', 
-          padding: '2rem', 
-          backgroundColor: '#f9fafb',
-          borderRadius: '0.375rem',
-          border: '1px solid #e5e7eb'
-        }}>
-          <p style={{ color: '#6b7280', marginBottom: '1rem' }}>
-            No customers found for "{searchQuery}"
-          </p>
-          <button
-            onClick={onCreateNew}
-            style={{
-              padding: '0.5rem 1rem',
-              backgroundColor: '#10b981',
-              color: 'white',
-              border: 'none',
-              borderRadius: '0.375rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              margin: '0 auto'
-            }}
-          >
-            <Plus size={16} />
-            Create New Customer
-          </button>
-        </div>
-      )}
-
-      {!searchPerformed && searchQuery.trim().length < 2 && (
-        <div style={{ 
-          textAlign: 'center', 
-          padding: '2rem',
-          backgroundColor: '#f8fafc',
-          borderRadius: '0.375rem',
-          border: '1px dashed #cbd5e1'
-        }}>
-          <p style={{ color: '#64748b', marginBottom: '1rem', fontSize: '0.875rem' }}>
-            Start typing to search for a customer
-          </p>
-          <p style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
-            If the customer doesn't exist, you'll be able to create a new one
-          </p>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Customer Creation Component
-const GuidedCustomerCreation: React.FC<{
-  onComplete: (customerData: any) => void;
-  onCancel: () => void;
-}> = ({ onComplete, onCancel }) => {
-  const [customerData, setCustomerData] = useState({
-    name: '',
-    type: 'commercial',
-    primaryContactName: '',
-    primaryContactPhone: '',
-    serviceAddress: {
-      line1: '',
-      city: 'Lafayette',
-      state: 'IN',
-      zip: ''
-    }
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!customerData.name.trim()) {
-      alert('Please enter a business name');
-      return;
-    }
-    onComplete(customerData);
-  };
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <div style={{ display: 'grid', gap: '1rem' }}>
-        <div>
-          <label style={{ 
-            display: 'block', 
-            fontSize: '0.875rem', 
-            fontWeight: '500', 
-            color: '#374151',
-            marginBottom: '0.5rem'
-          }}>
-            Business Name *
-          </label>
-          <input
-            type="text"
-            value={customerData.name}
-            onChange={(e) => setCustomerData(prev => ({ ...prev, name: e.target.value }))}
-            required
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              border: '1px solid #d1d5db',
-              borderRadius: '0.375rem',
-              fontSize: '0.875rem'
-            }}
-          />
-        </div>
-
-        <div>
-          <label style={{ 
-            display: 'block', 
-            fontSize: '0.875rem', 
-            fontWeight: '500', 
-            color: '#374151',
-            marginBottom: '0.5rem'
-          }}>
-            Primary Contact Name
-          </label>
-          <input
-            type="text"
-            value={customerData.primaryContactName}
-            onChange={(e) => setCustomerData(prev => ({ ...prev, primaryContactName: e.target.value }))}
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              border: '1px solid #d1d5db',
-              borderRadius: '0.375rem',
-              fontSize: '0.875rem'
-            }}
-          />
-        </div>
-
-        <div>
-          <label style={{ 
-            display: 'block', 
-            fontSize: '0.875rem', 
-            fontWeight: '500', 
-            color: '#374151',
-            marginBottom: '0.5rem'
-          }}>
-            Phone Number
-          </label>
-          <input
-            type="tel"
-            value={customerData.primaryContactPhone}
-            onChange={(e) => setCustomerData(prev => ({ ...prev, primaryContactPhone: e.target.value }))}
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              border: '1px solid #d1d5db',
-              borderRadius: '0.375rem',
-              fontSize: '0.875rem'
-            }}
-          />
-        </div>
-
-        <div>
-          <label style={{ 
-            display: 'block', 
-            fontSize: '0.875rem', 
-            fontWeight: '500', 
-            color: '#374151',
-            marginBottom: '0.5rem'
-          }}>
-            Service Address
-          </label>
-          <input
-            type="text"
-            value={customerData.serviceAddress.line1}
-            onChange={(e) => setCustomerData(prev => ({ 
-              ...prev, 
-              serviceAddress: { ...prev.serviceAddress, line1: e.target.value }
-            }))}
-            placeholder="Street address"
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              border: '1px solid #d1d5db',
-              borderRadius: '0.375rem',
-              fontSize: '0.875rem',
-              marginBottom: '0.5rem'
-            }}
-          />
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '0.5rem' }}>
-            <input
-              type="text"
-              value={customerData.serviceAddress.city}
-              onChange={(e) => setCustomerData(prev => ({ 
-                ...prev, 
-                serviceAddress: { ...prev.serviceAddress, city: e.target.value }
-              }))}
-              placeholder="City"
-              style={{
-                padding: '0.75rem',
-                border: '1px solid #d1d5db',
-                borderRadius: '0.375rem',
-                fontSize: '0.875rem'
-              }}
-            />
-            <input
-              type="text"
-              value={customerData.serviceAddress.state}
-              onChange={(e) => setCustomerData(prev => ({ 
-                ...prev, 
-                serviceAddress: { ...prev.serviceAddress, state: e.target.value }
-              }))}
-              placeholder="State"
-              style={{
-                padding: '0.75rem',
-                border: '1px solid #d1d5db',
-                borderRadius: '0.375rem',
-                fontSize: '0.875rem'
-              }}
-            />
-            <input
-              type="text"
-              value={customerData.serviceAddress.zip}
-              onChange={(e) => setCustomerData(prev => ({ 
-                ...prev, 
-                serviceAddress: { ...prev.serviceAddress, zip: e.target.value }
-              }))}
-              placeholder="ZIP"
-              style={{
-                padding: '0.75rem',
-                border: '1px solid #d1d5db',
-                borderRadius: '0.375rem',
-                fontSize: '0.875rem'
-              }}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div style={{
-        display: 'flex',
-        justifyContent: 'flex-end',
-        gap: '1rem',
-        marginTop: '2rem',
-        paddingTop: '1rem',
-        borderTop: '1px solid #e5e7eb'
-      }}>
-        <button
-          type="button"
-          onClick={onCancel}
-          style={{
-            padding: '0.75rem 1.5rem',
-            border: '1px solid #d1d5db',
-            borderRadius: '0.375rem',
-            backgroundColor: 'white',
-            color: '#374151',
-            cursor: 'pointer',
-            fontSize: '0.875rem'
-          }}
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          style={{
-            padding: '0.75rem 1.5rem',
-            border: 'none',
-            borderRadius: '0.375rem',
-            backgroundColor: '#10b981',
-            color: 'white',
-            cursor: 'pointer',
-            fontSize: '0.875rem',
-            fontWeight: '500'
-          }}
-        >
-          Create Customer & Continue
-        </button>
-      </div>
-    </form>
-  );
-};
-
-// Main Modal Component
-const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({ 
-  isOpen, 
-  onClose, 
-  onSave, 
-  technicians,
-  preSelectedCustomer 
-}) => {
-  const [currentStep, setCurrentStep] = useState<'search' | 'create-customer' | 'work-order'>('search');
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [customerEquipment, setCustomerEquipment] = useState<Equipment[]>([]);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [customerEquipment, setCustomerEquipment] = useState<Equipment[]>([]);
-  const isSubmittingRef = useRef(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const [showAddContact, setShowAddContact] = useState(false);
 
   const [workOrder, setWorkOrder] = useState({
     problemDescription: '',
+    equipmentId: '',
     equipmentType: '',
     callRate: 'RT',
     callUrgency: 'Default',
     callType: 'Time and Material',
-    priority: 'Normal',
     scheduledDate: new Date().toISOString().split('T')[0],
     scheduledTimeSlot: '',
     assignedTechId: '',
-    equipmentId: '',
     customerPO: ''
   });
 
-  const callRateOptions = [
-    { value: 'RT', label: 'Regular Time' },
-    { value: 'OT', label: 'Overtime' }
-  ];
+  const [newContact, setNewContact] = useState({
+    firstName: '',
+    lastName: '',
+    title: '',
+    phone: '',
+    email: ''
+  });
 
-  const callUrgencyOptions = [
-    { value: 'Default', label: 'Default' },
-    { value: 'Urgent', label: 'Urgent' }, 
-    { value: 'Emergency', label: 'Emergency' }
-  ];
-
-  const callTypeOptions = [
-    { value: 'Time and Material', label: 'Time and Material' },
-    { value: 'Callback', label: 'Callback' },
-    { value: 'Quoted Job', label: 'Quoted Job' },
-    { value: 'Preventive Maintenance', label: 'Preventive Maintenance' },
-    { value: 'Time Off', label: 'Time Off' }
-  ];
-
-  // Reset form when modal opens/closes
-  const resetForm = useCallback(() => {
-    setCurrentStep('search');
-    setSelectedCustomer(null);
-    setCustomerEquipment([]);
-    setWorkOrder({
-      problemDescription: '',
-      equipmentType: '',
-      callRate: 'RT',
-      callUrgency: 'Default',
-      callType: 'Time and Material',
-      priority: 'Normal',
-      scheduledDate: new Date().toISOString().split('T')[0],
-      scheduledTimeSlot: '',
-      assignedTechId: '',
-      equipmentId: '',
-      customerPO: ''
-    });
-    setError(null);
-    setLoading(false);
-    isSubmittingRef.current = false;
-  }, []);
-
+  // Fetch contacts when customer is selected
   useEffect(() => {
-    if (isOpen) {
-      resetForm();
-      if (preSelectedCustomer) {
-        setSelectedCustomer(preSelectedCustomer);
-        setCurrentStep('work-order');
-      }
-    } else {
-      // Cancel any ongoing requests when modal closes
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+    if (selectedCustomer) {
+      fetchContacts(selectedCustomer.id);
+      fetchEquipment(selectedCustomer.id);
     }
-  }, [isOpen, preSelectedCustomer, resetForm]);
+  }, [selectedCustomer]);
 
-  // Load customer equipment
-  const loadCustomerEquipment = useCallback(async (customerId: number) => {
+  // Customer search with debounce
+  useEffect(() => {
+    if (!searchQuery.trim() || searchQuery.length < 2) {
+      setCustomers([]);
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(
+          `http://localhost:5000/api/customers/search?q=${encodeURIComponent(searchQuery.trim())}`
+        );
+        if (response.ok) {
+          const results = await response.json();
+          setCustomers(results);
+        }
+      } catch (error) {
+        console.error('Customer search error:', error);
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  const fetchContacts = async (customerId: number) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/customers/${customerId}/contacts`);
+      if (response.ok) {
+        const data = await response.json();
+        setContacts(data);
+        // Auto-select primary contact if exists
+        const primaryContact = data.find((c: Contact) => c.is_primary);
+        if (primaryContact) {
+          setSelectedContact(primaryContact);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching contacts:', error);
+    }
+  };
+
+  const fetchEquipment = async (customerId: number) => {
     try {
       const response = await fetch(`http://localhost:5000/api/customers/${customerId}/equipment`);
       if (response.ok) {
-        const equipment = await response.json();
-        setCustomerEquipment(equipment);
-      } else {
-        setCustomerEquipment([]);
+        const data = await response.json();
+        setCustomerEquipment(data);
       }
     } catch (error) {
-      console.error('Failed to load customer equipment:', error);
-      setCustomerEquipment([]);
+      console.error('Error fetching equipment:', error);
     }
-  }, []);
+  };
 
-  useEffect(() => {
-    if (selectedCustomer?.id) {
-      loadCustomerEquipment(selectedCustomer.id);
-    }
-  }, [selectedCustomer, loadCustomerEquipment]);
-
-  // Create work order with proper deduplication
-  const createWorkOrder = useCallback(async () => {
-  console.log('🚀 createWorkOrder called, current state:', {
-    isSubmitting: isSubmittingRef.current,
-    loading,
-    hasCustomer: !!selectedCustomer,
-    customerIdFromState: selectedCustomer?.id
-  });
-
-  if (!selectedCustomer) {
-    setError('Please select a customer');
-    return;
-  }
-
-  if (!workOrder.problemDescription.trim()) {
-    setError('Please enter a problem description');
-    return;
-  }
-
-  // Prevent duplicate submissions
-  if (isSubmittingRef.current || loading) {
-    console.log('🚫 BLOCKED: Request already in progress');
-    return;
-  }
-
-  console.log('✅ PROCEEDING with work order creation');
-    isSubmittingRef.current = true;
-    setLoading(true);
-    setError(null);
-
-    // Cancel any previous request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
+  const handleAddContact = async () => {
+    if (!selectedCustomer || !newContact.firstName || !newContact.lastName) return;
 
     try {
-      const woData = {
-        customerId: selectedCustomer.id,
-        equipmentId: workOrder.equipmentId ? parseInt(workOrder.equipmentId) : null,
-        equipmentType: workOrder.equipmentType.trim() || null,
-        problemDescription: workOrder.problemDescription.trim(),
-        callRate: workOrder.callRate,
-        callUrgency: workOrder.callUrgency,
-        callType: workOrder.callType,
-        priority: workOrder.priority,
-        scheduledDate: workOrder.scheduledDate || null,
-        scheduledTimeSlot: workOrder.scheduledTimeSlot || null,
-        assignedTechId: workOrder.assignedTechId ? parseInt(workOrder.assignedTechId) : null,
-        customerPO: workOrder.customerPO.trim() || null
-      };
+      const response = await fetch(`http://localhost:5000/api/customers/${selectedCustomer.id}/contacts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: newContact.firstName,
+          lastName: newContact.lastName,
+          title: newContact.title,
+          phone: newContact.phone,
+          email: newContact.email,
+          isPrimary: contacts.length === 0
+        })
+      });
 
-      console.log('Creating work order with data:', woData);
+      if (response.ok) {
+        const contact = await response.json();
+        setContacts([...contacts, contact]);
+        setSelectedContact(contact);
+        setShowAddContact(false);
+        setNewContact({ firstName: '', lastName: '', title: '', phone: '', email: '' });
+      }
+    } catch (error) {
+      console.error('Error adding contact:', error);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedCustomer) {
+      setError('Please select a customer');
+      return;
+    }
+
+    if (!workOrder.problemDescription.trim()) {
+      setError('Please describe the problem');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const payload = {
+        customerId: selectedCustomer.id,
+        contactId: selectedContact?.id,
+        ...workOrder
+      };
 
       const response = await fetch('http://localhost:5000/api/work-orders', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(woData),
-        signal: abortController.signal
-      });
-
-      if (abortController.signal.aborted) {
-        return;
-      }
-
-      if (response.ok) {
-        const newWO = await response.json();
-        console.log('Work order created successfully:', newWO);
-        onSave(newWO);
-        resetForm();
-      } else {
-        const errorText = await response.text();
-        console.error('Work order creation failed:', errorText);
-        
-        try {
-          const errorData = JSON.parse(errorText);
-          setError(errorData.error || 'Failed to create work order');
-        } catch {
-          setError(`Server error: ${response.status} - ${errorText}`);
-        }
-      }
-    } catch (error: any) {
-      if (error.name !== 'AbortError') {
-        console.error('Network error creating work order:', error);
-        setError('Network error occurred. Please check if the backend server is running.');
-      }
-    } finally {
-      if (!abortController.signal.aborted) {
-        setLoading(false);
-        isSubmittingRef.current = false;
-      }
-    }
-  }, [selectedCustomer, workOrder, loading, onSave, resetForm]);
-
-  const handleCustomerSelected = useCallback((customer: Customer) => {
-    console.log('Customer selected:', customer);
-    setSelectedCustomer(customer);
-    setCurrentStep('work-order');
-  }, []);
-
-  const handleCustomerCreated = useCallback(() => {
-    setCurrentStep('create-customer');
-  }, []);
-
-  const handleCustomerCreationComplete = useCallback(async (customerData: any) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const apiData = {
-        name: customerData.name,
-        phone: customerData.primaryContactPhone,
-        service_address: customerData.serviceAddress.line1,
-        service_city: customerData.serviceAddress.city,
-        service_state: customerData.serviceAddress.state,
-        service_zip: customerData.serviceAddress.zip,
-        customer_type: customerData.type || 'commercial'
-      };
-
-      const response = await fetch('http://localhost:5000/api/customers', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(apiData)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
-        const newCustomer = await response.json();
-        console.log('Customer created successfully:', newCustomer);
-        setSelectedCustomer(newCustomer);
-        setCurrentStep('work-order');
+        const newWorkOrder = await response.json();
+        onSave(newWorkOrder);
+        onClose();
       } else {
         const errorData = await response.json();
-        setError(errorData.error || 'Failed to create customer');
+        setError(errorData.error || 'Failed to create work order');
       }
     } catch (error) {
-      console.error('Customer creation error:', error);
-      setError('Network error while creating customer');
+      console.error('Error creating work order:', error);
+      setError('Failed to create work order');
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  const handleBack = useCallback(() => {
-    if (currentStep === 'create-customer') {
-      setCurrentStep('search');
-    } else if (currentStep === 'work-order') {
-      setCurrentStep('search');
-      setSelectedCustomer(null);
-    }
-  }, [currentStep]);
-
-  const handleSubmit = useCallback((e: React.FormEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    createWorkOrder();
-  }, [createWorkOrder]);
-
-  const formatTechnicianName = (tech: Technician) => {
-    return `${tech.first_name} ${tech.last_name} (${tech.crew})`;
-  };
-
-  const getTechnicianId = (tech: Technician) => {
-    return tech.tech_id || tech.id;
   };
 
   if (!isOpen) return null;
@@ -711,293 +206,785 @@ const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({
   return (
     <div style={{
       position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
+      inset: 0,
       backgroundColor: 'rgba(0, 0, 0, 0.5)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 1000
+      zIndex: 9999,
+      padding: '1rem'
     }}>
       <div style={{
         backgroundColor: 'white',
-        borderRadius: '0.5rem',
-        width: '90%',
-        maxWidth: '600px',
+        borderRadius: '16px',
+        width: '100%',
+        maxWidth: '1000px',
         maxHeight: '90vh',
         display: 'flex',
         flexDirection: 'column',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
       }}>
         {/* Header */}
         <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
           padding: '1.5rem',
-          borderBottom: '1px solid #e5e7eb'
+          borderBottom: '1px solid #E5E7EB',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            {currentStep !== 'search' && (
-              <button
-                onClick={handleBack}
-                type="button"
-                style={{
-                  padding: '0.5rem',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '0.375rem',
-                  backgroundColor: 'white',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center'
-                }}
-              >
-                ←
-              </button>
-            )}
-            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', color: '#1f2937', margin: 0 }}>
-              {currentStep === 'search' && 'New Work Order - Select Customer'}
-              {currentStep === 'create-customer' && 'New Work Order - Create Customer'}
-              {currentStep === 'work-order' && 'New Work Order - Work Order Details'}
-            </h2>
-          </div>
+          <h2 style={{
+            fontSize: '1.5rem',
+            fontWeight: '700',
+            color: '#111827',
+            margin: 0
+          }}>
+            New Service Call
+          </h2>
           <button
             onClick={onClose}
-            type="button"
             style={{
-              padding: '0.5rem',
-              border: 'none',
               background: 'none',
+              border: 'none',
               cursor: 'pointer',
-              color: '#6b7280'
+              padding: '0.5rem',
+              borderRadius: '0.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              color: '#6B7280'
             }}
           >
             <X size={24} />
           </button>
         </div>
 
-        {/* Error Display */}
-        {error && (
-          <div style={{
-            margin: '1rem 1.5rem 0',
-            padding: '0.75rem',
-            backgroundColor: '#fee2e2',
-            border: '1px solid #fca5a5',
-            borderRadius: '0.375rem',
-            color: '#991b1b',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
-            <AlertCircle size={16} />
-            {error}
-          </div>
-        )}
-
         {/* Content */}
-        <div style={{ flex: 1, overflow: 'auto', padding: '1.5rem' }}>
-          {currentStep === 'search' && (
-            <CustomerSearch
-              onCustomerSelected={handleCustomerSelected}
-              onCreateNew={handleCustomerCreated}
-            />
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '2rem'
+        }}>
+          {error && (
+            <div style={{
+              backgroundColor: '#FEE2E2',
+              border: '1px solid #FCA5A5',
+              borderRadius: '0.5rem',
+              padding: '1rem',
+              marginBottom: '1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem'
+            }}>
+              <AlertCircle size={20} color="#DC2626" />
+              <span style={{ color: '#DC2626', fontSize: '0.875rem' }}>{error}</span>
+            </div>
           )}
 
-          {currentStep === 'create-customer' && (
-            <GuidedCustomerCreation
-              onComplete={handleCustomerCreationComplete}
-              onCancel={handleBack}
-            />
-          )}
-
-          {currentStep === 'work-order' && selectedCustomer && (
-            <form onSubmit={handleSubmit}>
-              {/* Customer Info */}
+          {/* SECTION 1: CUSTOMER & CONTACT */}
+          <div style={{ marginBottom: '2.5rem' }}>
+            <h3 style={{
+              fontSize: '1.25rem',
+              fontWeight: '700',
+              color: '#111827',
+              marginBottom: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
               <div style={{
-                backgroundColor: '#f8fafc',
-                padding: '1rem',
-                borderRadius: '0.5rem',
-                marginBottom: '1.5rem',
-                border: '1px solid #e2e8f0'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <User size={16} color="#3b82f6" />
-                  <h3 style={{ fontSize: '1rem', fontWeight: '600', color: '#1f2937', margin: 0 }}>
-                    {selectedCustomer.name}
-                  </h3>
-                  {selectedCustomer.zone && (
-                    <span style={{
-                      padding: '0.125rem 0.5rem',
-                      backgroundColor: '#3b82f6',
-                      color: 'white',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.75rem',
-                      fontWeight: '500'
-                    }}>
-                      Zone {selectedCustomer.zone}
-                    </span>
-                  )}
-                </div>
-                <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                  {selectedCustomer.service_city}, {selectedCustomer.service_state}
-                  {selectedCustomer.primary_contact_name && (
-                    <span> • {selectedCustomer.primary_contact_name}</span>
-                  )}
-                  {selectedCustomer.primary_contact_phone && (
-                    <span> • {selectedCustomer.primary_contact_phone}</span>
-                  )}
-                </div>
-              </div>
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                backgroundColor: '#3B82F6',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.875rem',
+                fontWeight: '700'
+              }}>1</div>
+              Who's Calling?
+            </h3>
 
-              {/* Work Order Form */}
-              <div style={{ display: 'grid', gap: '1rem' }}>
-                {/* Problem Description */}
-                <div>
-                  <label style={{
-                    display: 'block',
-                    fontSize: '0.875rem',
-                    fontWeight: '500',
-                    color: '#374151',
-                    marginBottom: '0.5rem'
-                  }}>
-                    Problem Description *
-                  </label>
-                  <textarea
-                    value={workOrder.problemDescription}
-                    onChange={(e) => setWorkOrder(prev => ({ ...prev, problemDescription: e.target.value }))}
-                    placeholder="Describe the issue or service needed..."
-                    required
+            {!selectedCustomer ? (
+              <div style={{
+                backgroundColor: '#F9FAFB',
+                borderRadius: '0.75rem',
+                padding: '1.5rem',
+                border: '2px dashed #D1D5DB'
+              }}>
+                <div style={{ position: 'relative' }}>
+                  <Search size={20} style={{
+                    position: 'absolute',
+                    left: '1rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#9CA3AF'
+                  }} />
+                  <input
+                    type="text"
+                    placeholder="Search by customer name, address, or phone..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                     style={{
                       width: '100%',
-                      minHeight: '80px',
-                      padding: '0.75rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.875rem',
-                      resize: 'vertical'
+                      padding: '0.875rem 1rem 0.875rem 3rem',
+                      border: '2px solid #E5E7EB',
+                      borderRadius: '0.75rem',
+                      fontSize: '1rem',
+                      outline: 'none',
+                      transition: 'all 0.2s',
+                      backgroundColor: 'white'
                     }}
+                    onFocus={(e) => e.target.style.borderColor = '#3B82F6'}
+                    onBlur={(e) => e.target.style.borderColor = '#E5E7EB'}
                   />
                 </div>
 
-                {/* Equipment Type */}
-                <div>
-                  <label style={{
-                    display: 'block',
-                    fontSize: '0.875rem',
-                    fontWeight: '500',
-                    color: '#374151',
-                    marginBottom: '0.5rem'
+                {customers.length > 0 && (
+                  <div style={{
+                    marginTop: '1rem',
+                    border: '1px solid #E5E7EB',
+                    borderRadius: '0.75rem',
+                    backgroundColor: 'white',
+                    maxHeight: '240px',
+                    overflowY: 'auto'
                   }}>
-                    Equipment Type (Optional)
-                  </label>
-                  <select
-                    value={workOrder.equipmentType}
-                    onChange={(e) => setWorkOrder(prev => ({ ...prev, equipmentType: e.target.value }))}
-                    style={{
-                      width: '100%',
-                      padding: '0.75rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.875rem',
-                      backgroundColor: 'white'
-                    }}
-                  >
-                    <option value="">Select Equipment Type</option>
-                    <option value="Steamer">Steamer</option>
-                    <option value="Oven">Oven</option>
-                    <option value="Fryer">Fryer</option>
-                    <option value="Griddle">Griddle</option>
-                    <option value="Walk-in Cooler">Walk-in Cooler</option>
-                    <option value="Reach-in Cooler">Reach-in Cooler</option>
-                    <option value="Freezer">Freezer</option>
-                    <option value="Ice Machine">Ice Machine</option>
-                    <option value="HVAC Unit">HVAC Unit</option>
-                    <option value="Dishwasher">Dishwasher</option>
-                    <option value="Other">Other</option>
-                  </select>
+                    {customers.map((customer) => (
+                      <div
+                        key={customer.id}
+                        onClick={() => {
+                          setSelectedCustomer(customer);
+                          setSearchQuery('');
+                          setCustomers([]);
+                        }}
+                        style={{
+                          padding: '1rem',
+                          borderBottom: '1px solid #F3F4F6',
+                          cursor: 'pointer',
+                          transition: 'background-color 0.15s'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F9FAFB'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                      >
+                        <div style={{ fontWeight: '600', color: '#111827', marginBottom: '0.25rem' }}>
+                          {customer.name}
+                        </div>
+                        <div style={{ fontSize: '0.875rem', color: '#6B7280' }}>
+                          {customer.service_address}, {customer.service_city}, {customer.service_state} {customer.service_zip}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div>
+                {/* Selected Customer Card */}
+                <div style={{
+                  backgroundColor: '#EFF6FF',
+                  border: '2px solid #3B82F6',
+                  borderRadius: '0.75rem',
+                  padding: '1.25rem',
+                  marginBottom: '1.5rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                    <div>
+                      <div style={{ fontSize: '1.125rem', fontWeight: '700', color: '#111827', marginBottom: '0.5rem' }}>
+                        {selectedCustomer.name}
+                      </div>
+                      <div style={{ fontSize: '0.875rem', color: '#374151', lineHeight: '1.5' }}>
+                        {selectedCustomer.service_address}<br />
+                        {selectedCustomer.service_city}, {selectedCustomer.service_state} {selectedCustomer.service_zip}
+                      </div>
+                      {selectedCustomer.phone && (
+                        <div style={{ fontSize: '0.875rem', color: '#374151', marginTop: '0.25rem' }}>
+                          📞 {selectedCustomer.phone}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedCustomer(null);
+                        setContacts([]);
+                        setSelectedContact(null);
+                      }}
+                      style={{
+                        background: 'white',
+                        border: '1px solid #D1D5DB',
+                        borderRadius: '0.5rem',
+                        padding: '0.5rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
                 </div>
 
-                {/* Call Type, Rate, and Urgency */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                {/* Contact Selection */}
+                <div style={{ marginTop: '1.5rem' }}>
+                  <div style={{
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    color: '#374151',
+                    marginBottom: '0.75rem'
+                  }}>
+                    Contact Person
+                  </div>
+
+                  {contacts.length === 0 && !showAddContact ? (
+                    <button
+                      onClick={() => setShowAddContact(true)}
+                      style={{
+                        width: '100%',
+                        padding: '1rem',
+                        border: '2px dashed #D1D5DB',
+                        borderRadius: '0.75rem',
+                        backgroundColor: '#F9FAFB',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem',
+                        color: '#6B7280',
+                        fontSize: '0.875rem',
+                        fontWeight: '500'
+                      }}
+                    >
+                      <Plus size={18} />
+                      Add Contact Person
+                    </button>
+                  ) : showAddContact ? (
+                    <div style={{
+                      border: '2px solid #E5E7EB',
+                      borderRadius: '0.75rem',
+                      padding: '1.25rem',
+                      backgroundColor: '#FAFAFA'
+                    }}>
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: '1rem',
+                        marginBottom: '1rem'
+                      }}>
+                        <input
+                          type="text"
+                          placeholder="First Name *"
+                          value={newContact.firstName}
+                          onChange={(e) => setNewContact({ ...newContact, firstName: e.target.value })}
+                          style={{
+                            padding: '0.75rem',
+                            border: '1px solid #D1D5DB',
+                            borderRadius: '0.5rem',
+                            fontSize: '0.875rem'
+                          }}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Last Name *"
+                          value={newContact.lastName}
+                          onChange={(e) => setNewContact({ ...newContact, lastName: e.target.value })}
+                          style={{
+                            padding: '0.75rem',
+                            border: '1px solid #D1D5DB',
+                            borderRadius: '0.5rem',
+                            fontSize: '0.875rem'
+                          }}
+                        />
+                      </div>
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr 1fr',
+                        gap: '1rem',
+                        marginBottom: '1rem'
+                      }}>
+                        <input
+                          type="text"
+                          placeholder="Title (optional)"
+                          value={newContact.title}
+                          onChange={(e) => setNewContact({ ...newContact, title: e.target.value })}
+                          style={{
+                            padding: '0.75rem',
+                            border: '1px solid #D1D5DB',
+                            borderRadius: '0.5rem',
+                            fontSize: '0.875rem'
+                          }}
+                        />
+                        <input
+                          type="tel"
+                          placeholder="Phone"
+                          value={newContact.phone}
+                          onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
+                          style={{
+                            padding: '0.75rem',
+                            border: '1px solid #D1D5DB',
+                            borderRadius: '0.5rem',
+                            fontSize: '0.875rem'
+                          }}
+                        />
+                        <input
+                          type="email"
+                          placeholder="Email"
+                          value={newContact.email}
+                          onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
+                          style={{
+                            padding: '0.75rem',
+                            border: '1px solid #D1D5DB',
+                            borderRadius: '0.5rem',
+                            fontSize: '0.875rem'
+                          }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.75rem' }}>
+                        <button
+                          onClick={handleAddContact}
+                          style={{
+                            flex: 1,
+                            padding: '0.75rem',
+                            backgroundColor: '#3B82F6',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '0.5rem',
+                            fontSize: '0.875rem',
+                            fontWeight: '600',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Save Contact
+                        </button>
+                        <button
+                          onClick={() => setShowAddContact(false)}
+                          style={{
+                            padding: '0.75rem 1.5rem',
+                            backgroundColor: 'white',
+                            color: '#6B7280',
+                            border: '1px solid #D1D5DB',
+                            borderRadius: '0.5rem',
+                            fontSize: '0.875rem',
+                            fontWeight: '600',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                        gap: '0.75rem',
+                        marginBottom: '0.75rem'
+                      }}>
+                        {contacts.map((contact) => (
+                          <div
+                            key={contact.id}
+                            onClick={() => setSelectedContact(contact)}
+                            style={{
+                              padding: '1rem',
+                              border: selectedContact?.id === contact.id ? '2px solid #3B82F6' : '2px solid #E5E7EB',
+                              borderRadius: '0.75rem',
+                              cursor: 'pointer',
+                              backgroundColor: selectedContact?.id === contact.id ? '#EFF6FF' : 'white',
+                              transition: 'all 0.2s',
+                              position: 'relative'
+                            }}
+                          >
+                            {selectedContact?.id === contact.id && (
+                              <div style={{
+                                position: 'absolute',
+                                top: '0.5rem',
+                                right: '0.5rem',
+                                backgroundColor: '#3B82F6',
+                                borderRadius: '50%',
+                                padding: '0.25rem',
+                                display: 'flex'
+                              }}>
+                                <CheckCircle2 size={14} color="white" />
+                              </div>
+                            )}
+                            <div style={{
+                              fontWeight: '700',
+                              color: '#111827',
+                              marginBottom: '0.25rem',
+                              fontSize: '0.9375rem'
+                            }}>
+                              {contact.first_name} {contact.last_name}
+                              {contact.is_primary && (
+                                <span style={{
+                                  marginLeft: '0.5rem',
+                                  fontSize: '0.6875rem',
+                                  fontWeight: '600',
+                                  color: '#059669',
+                                  backgroundColor: '#D1FAE5',
+                                  padding: '0.125rem 0.5rem',
+                                  borderRadius: '0.25rem'
+                                }}>
+                                  PRIMARY
+                                </span>
+                              )}
+                            </div>
+                            {contact.title && (
+                              <div style={{ fontSize: '0.8125rem', color: '#6B7280', marginBottom: '0.5rem' }}>
+                                {contact.title}
+                              </div>
+                            )}
+                            {contact.phone && (
+                              <div style={{
+                                fontSize: '0.8125rem',
+                                color: '#374151',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.375rem',
+                                marginTop: '0.5rem'
+                              }}>
+                                <Phone size={12} />
+                                {contact.phone}
+                              </div>
+                            )}
+                            {contact.email && (
+                              <div style={{
+                                fontSize: '0.8125rem',
+                                color: '#374151',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.375rem',
+                                marginTop: '0.25rem'
+                              }}>
+                                <Mail size={12} />
+                                {contact.email}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => setShowAddContact(true)}
+                        style={{
+                          padding: '0.625rem 1rem',
+                          border: '1px solid #D1D5DB',
+                          borderRadius: '0.5rem',
+                          backgroundColor: 'white',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          color: '#374151',
+                          fontSize: '0.8125rem',
+                          fontWeight: '500'
+                        }}
+                      >
+                        <Plus size={14} />
+                        Add Another Contact
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Only show following sections if customer is selected */}
+          {selectedCustomer && (
+            <>
+              {/* SECTION 2: PROBLEM DESCRIPTION */}
+              <div style={{ marginBottom: '2.5rem' }}>
+                <h3 style={{
+                  fontSize: '1.25rem',
+                  fontWeight: '700',
+                  color: '#111827',
+                  marginBottom: '1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}>
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    backgroundColor: '#3B82F6',
+                    color: 'white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.875rem',
+                    fontWeight: '700'
+                  }}>2</div>
+                  What's the Problem?
+                </h3>
+
+                <textarea
+                  placeholder="Describe the issue... (e.g., 'Ice machine making loud noises and ice production is slow')"
+                  value={workOrder.problemDescription}
+                  onChange={(e) => setWorkOrder({ ...workOrder, problemDescription: e.target.value })}
+                  style={{
+                    width: '100%',
+                    minHeight: '120px',
+                    padding: '1rem',
+                    border: '2px solid #E5E7EB',
+                    borderRadius: '0.75rem',
+                    fontSize: '1rem',
+                    lineHeight: '1.5',
+                    resize: 'vertical',
+                    fontFamily: 'inherit',
+                    marginBottom: '1rem',
+                    outline: 'none'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#3B82F6'}
+                  onBlur={(e) => e.target.style.borderColor = '#E5E7EB'}
+                />
+
+                {/* Equipment Type Selection */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.875rem' }}>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '0.875rem',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '0.5rem'
+                    }}>
+                      Equipment Type
+                    </label>
+                    <select
+                      value={workOrder.equipmentType}
+                      onChange={(e) => setWorkOrder({ ...workOrder, equipmentType: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem',
+                        border: '2px solid #E5E7EB',
+                        borderRadius: '0.75rem',
+                        fontSize: '0.9375rem',
+                        backgroundColor: 'white',
+                        cursor: 'pointer',
+                        outline: 'none',
+                        appearance: 'none',
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 0.5rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.5em 1.5em',
+                        paddingRight: '2.5rem'
+                      }}
+                    >
+                      <option value="">Select equipment type...</option>
+                      <option value="Ice Machine">Ice Machine</option>
+                      <option value="Refrigerator">Refrigerator</option>
+                      <option value="Freezer">Freezer</option>
+                      <option value="Oven">Oven</option>
+                      <option value="Fryer">Fryer</option>
+                      <option value="Steamer">Steamer</option>
+                      <option value="Dishwasher">Dishwasher</option>
+                      <option value="HVAC">HVAC</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '0.875rem',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '0.5rem'
+                    }}>
+                      Specific Equipment (Optional)
+                    </label>
+                    <select
+                      value={workOrder.equipmentId}
+                      onChange={(e) => setWorkOrder({ ...workOrder, equipmentId: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem',
+                        border: '2px solid #E5E7EB',
+                        borderRadius: '0.75rem',
+                        fontSize: '0.9375rem',
+                        backgroundColor: 'white',
+                        cursor: 'pointer',
+                        outline: 'none',
+                        appearance: 'none',
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 0.5rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.5em 1.5em',
+                        paddingRight: '2.5rem'
+                      }}
+                      disabled={customerEquipment.length === 0}
+                    >
+                      <option value="">No specific equipment</option>
+                      {customerEquipment.map((eq) => (
+                        <option key={eq.id} value={eq.id}>
+                          {eq.equipment_type} - {eq.equipment_number} {eq.location_description && `(${eq.location_description})`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 3: URGENCY & SCHEDULING */}
+              <div style={{ marginBottom: '2.5rem' }}>
+                <h3 style={{
+                  fontSize: '1.25rem',
+                  fontWeight: '700',
+                  color: '#111827',
+                  marginBottom: '1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}>
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    backgroundColor: '#3B82F6',
+                    color: 'white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.875rem',
+                    fontWeight: '700'
+                  }}>3</div>
+                  How Urgent Is This?
+                </h3>
+
+                {/* Urgency Cards */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: '1rem',
+                  marginBottom: '1.5rem'
+                }}>
+                  {[
+                    { value: 'Default', label: 'Default', icon: '🟢', desc: 'Standard service', color: '#10B981' },
+                    { value: 'Urgent', label: 'Urgent', icon: '🟡', desc: 'Same day needed', color: '#F59E0B' },
+                    { value: 'Emergency', label: 'Emergency', icon: '🔴', desc: 'Critical/After hours', color: '#EF4444' }
+                  ].map((urgency) => (
+                    <div
+                      key={urgency.value}
+                      onClick={() => setWorkOrder({ ...workOrder, callUrgency: urgency.value })}
+                      style={{
+                        padding: '1.25rem',
+                        border: workOrder.callUrgency === urgency.value ? `3px solid ${urgency.color}` : '2px solid #E5E7EB',
+                        borderRadius: '0.75rem',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        backgroundColor: workOrder.callUrgency === urgency.value ? `${urgency.color}10` : 'white',
+                        transition: 'all 0.2s',
+                        position: 'relative'
+                      }}
+                    >
+                      {workOrder.callUrgency === urgency.value && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '0.5rem',
+                          right: '0.5rem',
+                          backgroundColor: urgency.color,
+                          borderRadius: '50%',
+                          padding: '0.25rem',
+                          display: 'flex'
+                        }}>
+                          <CheckCircle2 size={14} color="white" />
+                        </div>
+                      )}
+                      <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>{urgency.icon}</div>
+                      <div style={{
+                        fontWeight: '700',
+                        fontSize: '1rem',
+                        color: '#111827',
+                        marginBottom: '0.25rem'
+                      }}>
+                        {urgency.label}
+                      </div>
+                      <div style={{ fontSize: '0.8125rem', color: '#6B7280' }}>
+                        {urgency.desc}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Call Details */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '0.875rem',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '0.5rem'
+                    }}>
                       Call Rate
                     </label>
                     <select
                       value={workOrder.callRate}
-                      onChange={(e) => setWorkOrder(prev => ({ ...prev, callRate: e.target.value }))}
+                      onChange={(e) => setWorkOrder({ ...workOrder, callRate: e.target.value })}
                       style={{
                         width: '100%',
                         padding: '0.75rem',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '0.375rem',
-                        fontSize: '0.875rem'
+                        border: '2px solid #E5E7EB',
+                        borderRadius: '0.75rem',
+                        fontSize: '0.9375rem',
+                        backgroundColor: 'white',
+                        cursor: 'pointer',
+                        outline: 'none',
+                        appearance: 'none',
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 0.5rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.5em 1.5em',
+                        paddingRight: '2.5rem'
                       }}
                     >
-                      {callRateOptions.map(option => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
+                      <option value="RT">Regular Time</option>
+                      <option value="OT">Overtime</option>
+                      <option value="DT">Double Time</option>
                     </select>
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.875rem' }}>
-                      Call Urgency
-                    </label>
-                    <select
-                      value={workOrder.callUrgency}
-                      onChange={(e) => setWorkOrder(prev => ({ ...prev, callUrgency: e.target.value }))}
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '0.375rem',
-                        fontSize: '0.875rem'
-                      }}
-                    >
-                      {callUrgencyOptions.map(option => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.875rem' }}>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '0.875rem',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '0.5rem'
+                    }}>
                       Call Type
                     </label>
                     <select
                       value={workOrder.callType}
-                      onChange={(e) => setWorkOrder(prev => ({ ...prev, callType: e.target.value }))}
+                      onChange={(e) => setWorkOrder({ ...workOrder, callType: e.target.value })}
                       style={{
                         width: '100%',
                         padding: '0.75rem',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '0.375rem',
-                        fontSize: '0.875rem'
+                        border: '2px solid #E5E7EB',
+                        borderRadius: '0.75rem',
+                        fontSize: '0.9375rem',
+                        backgroundColor: 'white',
+                        cursor: 'pointer',
+                        outline: 'none',
+                        appearance: 'none',
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 0.5rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.5em 1.5em',
+                        paddingRight: '2.5rem'
                       }}
                     >
-                      {callTypeOptions.map(option => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
+                      <option value="Time and Material">Time and Material</option>
+                      <option value="Contract">Contract</option>
+                      <option value="Warranty">Warranty</option>
+                      <option value="Quote">Quote</option>
                     </select>
                   </div>
-                </div>
 
-                {/* Scheduled Date and Time Slot */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div>
-                    <label style={{ 
-                      display: 'block', 
-                      fontSize: '0.875rem', 
-                      fontWeight: '500', 
+                    <label style={{
+                      display: 'block',
+                      fontSize: '0.875rem',
+                      fontWeight: '600',
                       color: '#374151',
                       marginBottom: '0.5rem'
                     }}>
@@ -1006,186 +993,190 @@ const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({
                     <input
                       type="date"
                       value={workOrder.scheduledDate}
-                      onChange={(e) => setWorkOrder(prev => ({ ...prev, scheduledDate: e.target.value }))}
+                      onChange={(e) => setWorkOrder({ ...workOrder, scheduledDate: e.target.value })}
                       style={{
                         width: '100%',
                         padding: '0.75rem',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '0.375rem',
-                        fontSize: '0.875rem'
+                        border: '2px solid #E5E7EB',
+                        borderRadius: '0.75rem',
+                        fontSize: '0.9375rem',
+                        outline: 'none'
                       }}
                     />
                   </div>
+                </div>
 
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div>
-                    <label style={{ 
-                      display: 'block', 
-                      fontSize: '0.875rem', 
-                      fontWeight: '500', 
+                    <label style={{
+                      display: 'block',
+                      fontSize: '0.875rem',
+                      fontWeight: '600',
                       color: '#374151',
                       marginBottom: '0.5rem'
                     }}>
-                      Time Slot
+                      Time Slot (Optional)
                     </label>
                     <select
                       value={workOrder.scheduledTimeSlot}
-                      onChange={(e) => setWorkOrder(prev => ({ ...prev, scheduledTimeSlot: e.target.value }))}
+                      onChange={(e) => setWorkOrder({ ...workOrder, scheduledTimeSlot: e.target.value })}
                       style={{
                         width: '100%',
                         padding: '0.75rem',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '0.375rem',
-                        fontSize: '0.875rem'
+                        border: '2px solid #E5E7EB',
+                        borderRadius: '0.75rem',
+                        fontSize: '0.9375rem',
+                        backgroundColor: 'white',
+                        cursor: 'pointer',
+                        outline: 'none',
+                        appearance: 'none',
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 0.5rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.5em 1.5em',
+                        paddingRight: '2.5rem'
                       }}
                     >
                       <option value="">Unscheduled</option>
-                      <option value="First AM">First AM</option>
-                      <option value="8:00 AM - 10:00 AM">8:00 AM - 10:00 AM</option>
-                      <option value="10:00 AM - 12:00 PM">10:00 AM - 12:00 PM</option>
-                      <option value="12:00 PM - 2:00 PM">12:00 PM - 2:00 PM</option>
-                      <option value="2:00 PM - 4:00 PM">2:00 PM - 4:00 PM</option>
-                      <option value="4:00 PM - 6:00 PM">4:00 PM - 6:00 PM</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Assigned Technician and Equipment */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <div>
-                    <label style={{ 
-                      display: 'block', 
-                      fontSize: '0.875rem', 
-                      fontWeight: '500', 
-                      color: '#374151',
-                      marginBottom: '0.5rem'
-                    }}>
-                      Assign Technician (Optional)
-                    </label>
-                    <select
-                      value={workOrder.assignedTechId}
-                      onChange={(e) => setWorkOrder(prev => ({ ...prev, assignedTechId: e.target.value }))}
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '0.375rem',
-                        fontSize: '0.875rem'
-                      }}
-                    >
-                      <option value="">Unassigned (will go to dispatch board)</option>
-                      {technicians.map(tech => (
-                        <option key={getTechnicianId(tech)} value={getTechnicianId(tech)}>
-                          {formatTechnicianName(tech)}
-                        </option>
-                      ))}
+                      <option value="FIRST AM">FIRST AM (7:00-9:00)</option>
+                      <option value="AM">AM (9:00-12:00)</option>
+                      <option value="PM">PM (12:00-5:00)</option>
+                      <option value="ANYTIME">ANYTIME</option>
                     </select>
                   </div>
 
                   <div>
-                    <label style={{ 
-                      display: 'block', 
-                      fontSize: '0.875rem', 
-                      fontWeight: '500', 
+                    <label style={{
+                      display: 'block',
+                      fontSize: '0.875rem',
+                      fontWeight: '600',
                       color: '#374151',
                       marginBottom: '0.5rem'
                     }}>
-                      Equipment (Optional)
+                      Customer PO (Optional)
                     </label>
-                    <select
-                      value={workOrder.equipmentId}
-                      onChange={(e) => setWorkOrder(prev => ({ ...prev, equipmentId: e.target.value }))}
+                    <input
+                      type="text"
+                      placeholder="PO Number"
+                      value={workOrder.customerPO}
+                      onChange={(e) => setWorkOrder({ ...workOrder, customerPO: e.target.value })}
                       style={{
                         width: '100%',
                         padding: '0.75rem',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '0.375rem',
-                        fontSize: '0.875rem'
+                        border: '2px solid #E5E7EB',
+                        borderRadius: '0.75rem',
+                        fontSize: '0.9375rem',
+                        outline: 'none'
                       }}
-                    >
-                      <option value="">No specific equipment</option>
-                      {customerEquipment.map(equipment => (
-                        <option key={equipment.id} value={equipment.id}>
-                          {equipment.equipment_type} - {equipment.equipment_number} ({equipment.location_description})
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
-                </div>
-
-                {/* Customer PO Number */}
-                <div>
-                  <label style={{ 
-                    display: 'block', 
-                    fontSize: '0.875rem', 
-                    fontWeight: '500', 
-                    color: '#374151',
-                    marginBottom: '0.5rem'
-                  }}>
-                    Customer PO Number (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={workOrder.customerPO}
-                    onChange={(e) => setWorkOrder(prev => ({ ...prev, customerPO: e.target.value }))}
-                    placeholder="Optional PO number"
-                    style={{
-                      width: '100%',
-                      padding: '0.75rem',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.875rem'
-                    }}
-                  />
                 </div>
               </div>
 
-              {/* Form Footer */}
-              <div style={{
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: '1rem',
-                marginTop: '2rem',
-                paddingTop: '1rem',
-                borderTop: '1px solid #e5e7eb'
-              }}>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  disabled={loading}
-                  style={{
-                    padding: '0.75rem 1.5rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.375rem',
-                    backgroundColor: 'white',
-                    color: '#374151',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    fontSize: '0.875rem',
-                    fontWeight: '500',
-                    opacity: loading ? 0.5 : 1
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading || !workOrder.problemDescription.trim()}
-                  style={{
-                    padding: '0.75rem 1.5rem',
-                    border: 'none',
-                    borderRadius: '0.375rem',
-                    backgroundColor: (loading || !workOrder.problemDescription.trim()) ? '#9ca3af' : '#3b82f6',
+              {/* SECTION 4: TECHNICIAN ASSIGNMENT */}
+              <div>
+                <h3 style={{
+                  fontSize: '1.25rem',
+                  fontWeight: '700',
+                  color: '#111827',
+                  marginBottom: '1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}>
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    backgroundColor: '#3B82F6',
                     color: 'white',
-                    cursor: (loading || !workOrder.problemDescription.trim()) ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     fontSize: '0.875rem',
-                    fontWeight: '500'
+                    fontWeight: '700'
+                  }}>4</div>
+                  Assign Technician (Optional)
+                </h3>
+
+                <select
+                  value={workOrder.assignedTechId}
+                  onChange={(e) => setWorkOrder({ ...workOrder, assignedTechId: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '0.875rem',
+                    border: '2px solid #E5E7EB',
+                    borderRadius: '0.75rem',
+                    fontSize: '0.9375rem',
+                    backgroundColor: 'white',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    appearance: 'none',
+                    backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                    backgroundPosition: 'right 0.5rem center',
+                    backgroundRepeat: 'no-repeat',
+                    backgroundSize: '1.5em 1.5em',
+                    paddingRight: '2.5rem'
                   }}
                 >
-                  {loading ? 'Creating...' : 'Create Work Order'}
-                </button>
+                  <option value="">Unassigned (will go to dispatch board)</option>
+                  {technicians.map((tech) => (
+                    <option key={tech.id} value={tech.id}>
+                      {tech.name} - Zone {tech.zone || 'No Zone'}
+                    </option>
+                  ))}
+                </select>
               </div>
-            </form>
+            </>
           )}
         </div>
+
+        {/* Footer */}
+        {selectedCustomer && (
+          <div style={{
+            padding: '1.5rem',
+            borderTop: '1px solid #E5E7EB',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '1rem',
+            backgroundColor: '#F9FAFB'
+          }}>
+            <button
+              onClick={onClose}
+              disabled={loading}
+              style={{
+                padding: '0.75rem 1.5rem',
+                border: '2px solid #D1D5DB',
+                borderRadius: '0.75rem',
+                backgroundColor: 'white',
+                color: '#374151',
+                fontSize: '0.9375rem',
+                fontWeight: '600',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.5 : 1
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={loading || !workOrder.problemDescription.trim()}
+              style={{
+                padding: '0.75rem 2rem',
+                border: 'none',
+                borderRadius: '0.75rem',
+                backgroundColor: loading || !workOrder.problemDescription.trim() ? '#9CA3AF' : '#3B82F6',
+                color: 'white',
+                fontSize: '0.9375rem',
+                fontWeight: '600',
+                cursor: loading || !workOrder.problemDescription.trim() ? 'not-allowed' : 'pointer',
+                boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+              }}
+            >
+              {loading ? 'Creating...' : 'Create Work Order'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -163,11 +163,30 @@ async function updateWorkOrderDates() {
   }
 }
 
+// Initialize customer contacts schema on startup
+async function initializeCustomerContactsSchema() {
+  try {
+    console.log('🔄 Initializing customer contacts schema...');
+    const schemaPath = path.join(__dirname, 'customer-contacts-schema.sql');
+    const schema = await fs.readFile(schemaPath, 'utf8');
+    await pool.query(schema);
+    console.log('✅ Customer contacts schema initialized successfully');
+  } catch (error) {
+    // If schema already exists, that's fine - just log and continue
+    if (error.message && error.message.includes('already exists')) {
+      console.log('ℹ️  Customer contacts schema already exists');
+    } else {
+      console.error('❌ Error initializing customer contacts schema:', error.message);
+    }
+  }
+}
+
 // Initialize database and update work orders on server start
 (async () => {
   await initializeAuthSchema();
   await initializeZonesSchema();
   await initializeWorkOrderStatusSchema();
+  await initializeCustomerContactsSchema();
   await updateWorkOrderDates();
 })();
 
@@ -3061,6 +3080,198 @@ app.post('/api/customers/:id/equipment', async (req, res) => {
     res.status(500).json({ error: 'Failed to add equipment' });
   } finally {
     client.release();
+  }
+});
+
+
+// ========================================
+// CUSTOMER CONTACTS ENDPOINTS
+// ========================================
+
+/**
+ * @route GET /api/customers/:id/contacts
+ * @description Get all contacts for a customer
+ */
+app.get('/api/customers/:id/contacts', async (req, res) => {
+  try {
+    const customerId = req.params.id;
+    console.log(`👥 Getting contacts for customer ID: ${customerId}`);
+
+    const result = await pool.query(`
+      SELECT *
+      FROM customer_contacts
+      WHERE customer_id = $1 AND is_active = true
+      ORDER BY is_primary DESC, last_name, first_name
+    `, [customerId]);
+
+    console.log(`✅ Found ${result.rows.length} contacts`);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('❌ Get contacts error:', error);
+    res.status(500).json({ error: 'Failed to get contacts' });
+  }
+});
+
+/**
+ * @route POST /api/customers/:id/contacts
+ * @description Add a new contact to a customer
+ */
+app.post('/api/customers/:id/contacts', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const customerId = req.params.id;
+    const {
+      firstName,
+      lastName,
+      title,
+      role,
+      phone,
+      email,
+      extension,
+      isPrimary = false,
+      canAuthorizeWork = false,
+      preferredContactMethod = 'phone',
+      notes
+    } = req.body;
+
+    console.log(`👤 Adding contact: ${firstName} ${lastName} to customer ${customerId}`);
+
+    // If this is being set as primary, unset any existing primary contacts
+    if (isPrimary) {
+      await client.query(`
+        UPDATE customer_contacts
+        SET is_primary = false
+        WHERE customer_id = $1 AND is_primary = true
+      `, [customerId]);
+    }
+
+    const result = await client.query(`
+      INSERT INTO customer_contacts (
+        customer_id, first_name, last_name, title, role,
+        phone, email, extension, is_primary, can_authorize_work,
+        preferred_contact_method, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *
+    `, [
+      customerId, firstName, lastName, title, role,
+      phone, email, extension, isPrimary, canAuthorizeWork,
+      preferredContactMethod, notes
+    ]);
+
+    await client.query('COMMIT');
+
+    console.log('✅ Contact added successfully');
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Add contact error:', error);
+    res.status(500).json({ error: 'Failed to add contact' });
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * @route PUT /api/customers/:customerId/contacts/:contactId
+ * @description Update a contact
+ */
+app.put('/api/customers/:customerId/contacts/:contactId', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { customerId, contactId } = req.params;
+    const {
+      firstName,
+      lastName,
+      title,
+      role,
+      phone,
+      email,
+      extension,
+      isPrimary,
+      canAuthorizeWork,
+      preferredContactMethod,
+      notes
+    } = req.body;
+
+    console.log(`👤 Updating contact ${contactId}`);
+
+    // If this is being set as primary, unset any existing primary contacts
+    if (isPrimary) {
+      await client.query(`
+        UPDATE customer_contacts
+        SET is_primary = false
+        WHERE customer_id = $1 AND is_primary = true AND id != $2
+      `, [customerId, contactId]);
+    }
+
+    const result = await client.query(`
+      UPDATE customer_contacts
+      SET
+        first_name = $1,
+        last_name = $2,
+        title = $3,
+        role = $4,
+        phone = $5,
+        email = $6,
+        extension = $7,
+        is_primary = $8,
+        can_authorize_work = $9,
+        preferred_contact_method = $10,
+        notes = $11
+      WHERE id = $12 AND customer_id = $13
+      RETURNING *
+    `, [
+      firstName, lastName, title, role, phone, email, extension,
+      isPrimary, canAuthorizeWork, preferredContactMethod, notes,
+      contactId, customerId
+    ]);
+
+    await client.query('COMMIT');
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    console.log('✅ Contact updated successfully');
+    res.json(result.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Update contact error:', error);
+    res.status(500).json({ error: 'Failed to update contact' });
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * @route DELETE /api/customers/:customerId/contacts/:contactId
+ * @description Soft delete a contact (set is_active = false)
+ */
+app.delete('/api/customers/:customerId/contacts/:contactId', async (req, res) => {
+  try {
+    const { contactId } = req.params;
+    console.log(`🗑️ Deactivating contact ${contactId}`);
+
+    const result = await pool.query(`
+      UPDATE customer_contacts
+      SET is_active = false
+      WHERE id = $1
+      RETURNING *
+    `, [contactId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    console.log('✅ Contact deactivated successfully');
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Delete contact error:', error);
+    res.status(500).json({ error: 'Failed to delete contact' });
   }
 });
 
@@ -8335,6 +8546,10 @@ server.listen(PORT, () => {
   console.log('');
   console.log('📊 Other Endpoints:');
   console.log('   👨‍🔧 GET  /api/technicians - Get all technicians');
+  console.log('   👥 GET  /api/customers/:id/contacts - Get customer contacts');
+  console.log('   👤 POST /api/customers/:id/contacts - Add new contact');
+  console.log('   👤 PUT  /api/customers/:customerId/contacts/:contactId - Update contact');
+  console.log('   🗑️  DELETE /api/customers/:customerId/contacts/:contactId - Delete contact');
   console.log('   🔧 GET  /api/customers/:id/equipment - Get customer equipment');
   console.log('   🔧 POST /api/customers/:id/equipment - Add equipment');
   console.log('   🔐 POST /api/auth/login - User authentication');
