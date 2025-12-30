@@ -181,6 +181,32 @@ const broadcastWorkOrderUpdate = (workOrder, action = 'updated', affectedDates =
 };
 
 // ================================
+// JWT AUTHENTICATION MIDDLEWARE
+// ================================
+
+/**
+ * Middleware to verify JWT tokens and extract user information
+ * Adds req.user with { userId, username, role } to authenticated requests
+ */
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+  if (!token) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET || 'dev-secret', (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+
+    req.user = user; // Contains: { userId, username, role }
+    next();
+  });
+};
+
+// ================================
 // BASIC ROUTES
 // ================================
 
@@ -522,7 +548,7 @@ app.get('/api/customers/:id', async (req, res) => {
  * @body {Object} customerData - Data for the new customer.
  * @returns {Object} The newly created customer object.
  */
-app.post('/api/customers', async (req, res) => {
+app.post('/api/customers', authenticateToken, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -558,7 +584,7 @@ app.post('/api/customers', async (req, res) => {
       name, phone, email, service_address, service_city, service_state, service_zip,
       billing_address, billing_city, billing_state, billing_zip, customer_type,
       rate_sheet, payment_terms, invoice_delivery_method, assignedZone, notes,
-      1, true // TODO: Replace 1 with actual user ID
+      req.user.userId, true
     ]);
 
     await client.query('COMMIT');
@@ -1524,13 +1550,14 @@ app.put('/api/work-orders/:id/complete', async (req, res) => {
  * @route PUT /api/work-orders/:id/suspend
  * @description Suspends a work order with complex date visibility rules.
  */
-app.put('/api/work-orders/:id/suspend', async (req, res) => {
+app.put('/api/work-orders/:id/suspend', authenticateToken, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
     const workOrderId = req.params.id;
-    const { notes, suspendedBy = 1, suspension_reason, expected_return_date } = req.body;
+    const { notes, suspension_reason, expected_return_date } = req.body;
+    const suspendedBy = req.user.userId;
     
     const suspensionDate = new Date().toISOString().split('T')[0];
 
@@ -2601,27 +2628,34 @@ app.get('/api/customers/:id/notes', async (req, res) => {
 });
 
 // POST /api/customers/:id/notes - Create a new note
-app.post('/api/customers/:id/notes', async (req, res) => {
+app.post('/api/customers/:id/notes', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const {
       note_text,
       note_type = 'general',
-      is_pinned = false,
-      created_by,
-      created_by_user_id
+      is_pinned = false
     } = req.body;
-    
+
     if (!note_text || note_text.trim() === '') {
       return res.status(400).json({ error: 'Note text is required' });
     }
-    
+
+    // Get user's full name from database for the created_by field
+    const userResult = await pool.query(`
+      SELECT first_name, last_name FROM users WHERE id = $1
+    `, [req.user.userId]);
+
+    const createdByName = userResult.rows.length > 0
+      ? `${userResult.rows[0].first_name} ${userResult.rows[0].last_name}`
+      : req.user.username;
+
     const result = await pool.query(`
       INSERT INTO customer_notes (
         customer_id, note_text, note_type, is_pinned, created_by, created_by_user_id
       ) VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
-    `, [id, note_text, note_type, is_pinned, created_by, created_by_user_id]);
+    `, [id, note_text, note_type, is_pinned, createdByName, req.user.userId]);
     
     res.status(201).json(result.rows[0]);
   } catch (error) {

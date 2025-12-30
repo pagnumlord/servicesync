@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, X, AlertCircle, User, Wrench, Calendar, Clock, FileText, Plus } from 'lucide-react';
 import { Customer, Technician } from '../types';
+import { getAuthHeaders } from '../contexts/AuthContext';
 
 
 interface Equipment {
@@ -657,9 +658,7 @@ const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({
 
       const response = await fetch('http://localhost:5000/api/customers', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(apiData)
       });
 

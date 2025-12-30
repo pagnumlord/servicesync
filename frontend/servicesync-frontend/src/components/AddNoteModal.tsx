@@ -10,10 +10,10 @@
 // ============================================================
 
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  X, 
-  StickyNote, 
-  Pin, 
+import {
+  X,
+  StickyNote,
+  Pin,
   AlertTriangle,
   Calendar,
   DollarSign,
@@ -23,6 +23,7 @@ import {
   Loader
 } from 'lucide-react';
 import { CustomerNote } from '../types';
+import { getAuthHeaders } from '../contexts/AuthContext';
 
 interface AddNoteModalProps {
   isOpen: boolean;
@@ -146,14 +147,11 @@ const AddNoteModal: React.FC<AddNoteModalProps> = ({
 
       const response = await fetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           note_text: noteText.trim(),
           note_type: noteType,
-          is_pinned: isPinned,
-          created_by: 'Current User' // TODO: Get from auth context
+          is_pinned: isPinned
         })
       });
 

@@ -1,18 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Home, Search, Settings, Menu, MessageCircle, MapPin, CheckSquare, 
+import {
+  Home, Search, Settings, Menu, MessageCircle, MapPin, CheckSquare,
   Users, Package, BarChart3, Plus, User, Bell, LogOut, Grid3X3,
   TrendingUp, Clock, AlertTriangle, DollarSign, Calendar, Wrench
 } from 'lucide-react';
 
+import { useAuth } from './contexts/AuthContext';
 
 // Import unified types
-import { 
-  WorkOrder, 
-  Technician, 
-  AppUser, 
-  DashboardWidget, 
-  DashboardStats 
+import {
+  WorkOrder,
+  Technician,
+  AppUser,
+  DashboardWidget,
+  DashboardStats
 } from './types';
 
 
@@ -24,13 +25,16 @@ import MapPage from './components/MapPage';
 import WorkOrderDetails from './components/WorkOrderDetails';
 
 const ServiceSync = () => {
+  const auth = useAuth();
+
   // State management
   const [currentView, setCurrentView] = useState('dispatch'); // Start with dispatch view
   const [currentTime, setCurrentTime] = useState(new Date());
   const [apiStatus, setApiStatus] = useState('Checking...');
-  const [user, setUser] = useState<AppUser | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
   const [showWidgetSelector, setShowWidgetSelector] = useState(false);
   const [showNewWorkOrderModal, setShowNewWorkOrderModal] = useState(false);
   const [webSocketStatus, setWebSocketStatus] = useState('Disconnected');
@@ -149,26 +153,15 @@ const ServiceSync = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // User authentication simulation
+  // Load user's dashboard preferences
   useEffect(() => {
-    const mockUser: AppUser = {
-      id: 1,
-      techId: 101,
-      role: 'Parts',
-      permissions: ['dispatch', 'view_all_work_orders', 'create_work_orders'],
-      name: 'Karsten Allen',
-      crew: 'Operations'
-    };
-    
-    setUser(mockUser);
-    setIsAuthenticated(true);
-    
-    // Load user's dashboard preferences
-    const savedWidgets = localStorage.getItem(`dashboard_widgets_${mockUser.id}`);
-    if (savedWidgets) {
-      setDashboardWidgets(JSON.parse(savedWidgets));
+    if (auth.user) {
+      const savedWidgets = localStorage.getItem(`dashboard_widgets_${auth.user.id}`);
+      if (savedWidgets) {
+        setDashboardWidgets(JSON.parse(savedWidgets));
+      }
     }
-  }, []);
+  }, [auth.user]);
 
   // Load technicians
   const loadTechnicians = async () => {
@@ -221,10 +214,21 @@ const ServiceSync = () => {
   const handleUserMenuClick = (action: string) => {
     console.log('User menu action:', action);
     setShowUserMenu(false);
-    
+
     if (action === 'logout') {
-      setIsAuthenticated(false);
-      setUser(null);
+      auth.logout();
+    }
+  };
+
+  // Handle login
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+
+    try {
+      await auth.login(username, password);
+    } catch (error: any) {
+      setLoginError(error.message || 'Login failed');
     }
   };
 
@@ -257,9 +261,9 @@ const handleNewWorkOrder = async (workOrderData: any) => {
     
     const updatedWidgets = [...dashboardWidgets, newWidget];
     setDashboardWidgets(updatedWidgets);
-    
-    if (user) {
-      localStorage.setItem(`dashboard_widgets_${user.id}`, JSON.stringify(updatedWidgets));
+
+    if (auth.user) {
+      localStorage.setItem(`dashboard_widgets_${auth.user.id}`, JSON.stringify(updatedWidgets));
     }
     
     setShowWidgetSelector(false);
@@ -268,9 +272,9 @@ const handleNewWorkOrder = async (workOrderData: any) => {
   const removeWidget = (widgetId: string) => {
     const updatedWidgets = dashboardWidgets.filter(w => w.id !== widgetId);
     setDashboardWidgets(updatedWidgets);
-    
-    if (user) {
-      localStorage.setItem(`dashboard_widgets_${user.id}`, JSON.stringify(updatedWidgets));
+
+    if (auth.user) {
+      localStorage.setItem(`dashboard_widgets_${auth.user.id}`, JSON.stringify(updatedWidgets));
     }
   };
 
@@ -356,13 +360,12 @@ const handleNewWorkOrder = async (workOrderData: any) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  if (!isAuthenticated) {
-    // ... Login page untouched for brevity
+  if (!auth.isAuthenticated) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         minHeight: '100vh',
         backgroundColor: '#f3f4f6'
       }}>
@@ -371,29 +374,85 @@ const handleNewWorkOrder = async (workOrderData: any) => {
           padding: '2rem',
           borderRadius: '0.5rem',
           boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-          textAlign: 'center'
+          width: '100%',
+          maxWidth: '400px'
         }}>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '1rem', color: '#1f2937' }}>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', color: '#1f2937', textAlign: 'center' }}>
             ServiceSync
           </h1>
-          <p style={{ color: '#262118', marginBottom: '1.5rem' }}>
+          <p style={{ color: '#6b7280', marginBottom: '1.5rem', textAlign: 'center' }}>
             Work Order Management System
           </p>
-          <button
-            onClick={() => setIsAuthenticated(true)}
-            style={{
-              backgroundColor: '#3b82f6',
-              color: 'white',
-              padding: '0.75rem 1.5rem',
-              border: 'none',
-              borderRadius: '0.375rem',
-              cursor: 'pointer',
-              fontSize: '1rem',
-              fontWeight: '500'
-            }}
-          >
-            Login
-          </button>
+
+          <form onSubmit={handleLogin}>
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
+                Username
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.375rem',
+                  fontSize: '1rem'
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
+                Password
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.375rem',
+                  fontSize: '1rem'
+                }}
+              />
+            </div>
+
+            {loginError && (
+              <div style={{
+                backgroundColor: '#fee2e2',
+                color: '#dc2626',
+                padding: '0.75rem',
+                borderRadius: '0.375rem',
+                marginBottom: '1rem',
+                fontSize: '0.875rem'
+              }}>
+                {loginError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              style={{
+                width: '100%',
+                backgroundColor: '#3b82f6',
+                color: 'white',
+                padding: '0.75rem 1.5rem',
+                border: 'none',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                fontSize: '1rem',
+                fontWeight: '500'
+              }}
+            >
+              Login
+            </button>
+          </form>
         </div>
       </div>
     );
@@ -509,7 +568,7 @@ const handleNewWorkOrder = async (workOrderData: any) => {
                 }}
               >
                 <User size={16} />
-                {user?.name || 'User'}
+                {auth.user ? `${auth.user.firstName} ${auth.user.lastName}` : 'User'}
               </button>
               
               {showUserMenu && (
@@ -527,10 +586,10 @@ const handleNewWorkOrder = async (workOrderData: any) => {
                 }}>
                   <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #e5e7eb' }}>
                     <p style={{ fontSize: '0.875rem', fontWeight: '500', color: '#1f2937', margin: 0 }}>
-                      {user?.name}
+                      {auth.user ? `${auth.user.firstName} ${auth.user.lastName}` : 'User'}
                     </p>
                     <p style={{ fontSize: '0.75rem', color: '#6b7280', margin: 0 }}>
-                      {user?.role} • {user?.crew}
+                      {auth.user?.role}
                     </p>
                   </div>
                   <button

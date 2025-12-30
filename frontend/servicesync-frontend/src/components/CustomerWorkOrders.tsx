@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Calendar, 
-  Clock, 
-  User, 
-  AlertCircle, 
-  CheckCircle, 
-  PauseCircle, 
+import {
+  Calendar,
+  Clock,
+  User,
+  AlertCircle,
+  CheckCircle,
+  PauseCircle,
   FileText,
   Filter,
   SortAsc,
@@ -18,6 +18,7 @@ import {
   X
 } from 'lucide-react';
 import { WorkOrder, Customer, CustomerWorkOrdersResponse, CustomerWorkOrdersFilters } from '../types';
+import { getAuthHeaders } from '../contexts/AuthContext';
 
 interface CustomerWorkOrdersProps {
   customer: Customer;
@@ -557,12 +558,9 @@ const loadWorkOrders = async () => {
         try {
           const response = await fetch(`http://localhost:5000/api/work-orders/${workOrder.id}/suspend`, {
             method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json'
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({
-              notes: `Work order ${actionText} from customer management`,
-              suspendedBy: 1 // TODO: Replace with actual user ID
+              notes: `Work order ${actionText} from customer management`
             })
           });
 
