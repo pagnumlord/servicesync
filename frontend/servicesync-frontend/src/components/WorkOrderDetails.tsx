@@ -1,4 +1,4 @@
-// WorkOrderDetails.tsx - Vision-inspired comprehensive work order modal
+// WorkOrderDetails.tsx - Professional ERP-grade work order view
 import React, { useState, useEffect } from 'react';
 import {
   X,
@@ -16,835 +16,764 @@ import {
   Save,
   Package,
   Settings,
+  CheckCircle,
   CheckSquare,
+  Pause,
+  Play,
   Archive,
-  Grid,
   Receipt,
   ShoppingCart,
   Paperclip,
-  Map,
   Eye,
-  Users
+  Users,
+  Building2,
+  Info,
+  Activity,
+  MessageSquare,
+  Image as ImageIcon
 } from 'lucide-react';
 import { WorkOrder } from '../types';
-import RegisterTab from './RegisterTab';
-import PurchasingTab from './PurchasingTab';
-import AttachmentsTab from './AttachmentsTab';
-import AssignmentsTab from './AssignmentsTab';
-import { useCollaboration } from '../hooks/useCollaboration';
 
 interface WorkOrderDetailsProps {
   workOrder: WorkOrder;
   isOpen: boolean;
   onClose: () => void;
   onUpdate?: (updatedWorkOrder: WorkOrder) => void;
+  onNavigateToCustomer?: (customerId: number) => void;
 }
 
 const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
   workOrder,
   isOpen,
   onClose,
-  onUpdate
+  onUpdate,
+  onNavigateToCustomer
 }) => {
+  const [activeTab, setActiveTab] = useState<'details' | 'timeline' | 'parts' | 'labor' | 'attachments'>('details');
   const [isEditing, setIsEditing] = useState(false);
   const [editedWorkOrder, setEditedWorkOrder] = useState<WorkOrder>(workOrder);
-  const [activeTab, setActiveTab] = useState<'customer' | 'general' | 'register' | 'purchasing' | 'attachments' | 'assignments'>('general');
-
-  // Real-time collaboration
-  const {
-    viewers,
-    typingIndicators,
-    fieldUpdates,
-    startTyping,
-    stopTyping,
-    broadcastFieldChange,
-    isConnected
-  } = useCollaboration(workOrder.id);
 
   useEffect(() => {
     setEditedWorkOrder(workOrder);
   }, [workOrder]);
 
-  // Handle incoming field updates from other users
-  useEffect(() => {
-    if (fieldUpdates.length > 0) {
-      const latestUpdate = fieldUpdates[fieldUpdates.length - 1];
-      console.log(`📝 ${latestUpdate.userName} updated ${latestUpdate.fieldName}:`, latestUpdate.value);
-    }
-  }, [fieldUpdates]);
-
   if (!isOpen) return null;
 
-  const getUrgencyColor = () => {
-    switch (workOrder.call_urgency) {
-      case 'Emergency': return '#DC2626';
-      case 'Urgent': return '#F59E0B';
-      case 'Default':
-      default: return '#6B7280';
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'complete':
+      case 'completed':
+        return '#10B981';
+      case 'in progress':
+        return '#3B82F6';
+      case 'suspended':
+        return '#F59E0B';
+      case 'open':
+        return '#6B7280';
+      default:
+        return '#6B7280';
     }
   };
 
-  const getRateTypeColor = () => {
-    switch (workOrder.call_rate) {
-      case 'OT': return '#7C3AED';
-      case 'Accelerated': return '#DC2626';
-      case 'RT':
-      default: return '#3B82F6';
+  const getUrgencyConfig = (urgency?: string) => {
+    switch (urgency) {
+      case 'Emergency':
+        return { color: '#EF4444', icon: '🔴', label: 'Emergency' };
+      case 'Urgent':
+        return { color: '#F59E0B', icon: '🟡', label: 'Urgent' };
+      default:
+        return { color: '#10B981', icon: '🟢', label: 'Default' };
     }
   };
 
-  const getRateTypeDisplay = () => {
-    switch (workOrder.call_rate) {
-      case 'OT': return 'Overtime';
-      case 'Accelerated': return 'Accelerated';
-      case 'RT':
-      default: return 'Regular Time';
-    }
+  const urgencyConfig = getUrgencyConfig(workOrder.call_urgency);
+
+  const handleComplete = async () => {
+    // TODO: API call to complete work order
+    console.log('Complete work order:', workOrder.id);
   };
 
-  const getUrgencyDisplay = () => {
-    switch (workOrder.call_urgency) {
-      case 'Emergency': return 'Emergency';
-      case 'Urgent': return 'Urgent';
-      case 'Default':
-      default: return 'Default';
-    }
+  const handleSuspend = async () => {
+    // TODO: API call to suspend work order
+    console.log('Suspend work order:', workOrder.id);
   };
 
-  const handleSave = async () => {
-    if (onUpdate) {
-      onUpdate(editedWorkOrder);
-    }
-    setIsEditing(false);
+  const handleResume = async () => {
+    // TODO: API call to resume work order
+    console.log('Resume work order:', workOrder.id);
   };
+
+  const tabs = [
+    { id: 'details' as const, label: 'Details', icon: Info },
+    { id: 'timeline' as const, label: 'Timeline', icon: Activity },
+    { id: 'parts' as const, label: 'Parts & Materials', icon: Package },
+    { id: 'labor' as const, label: 'Labor & Time', icon: Clock },
+    { id: 'attachments' as const, label: 'Attachments', icon: Paperclip }
+  ];
 
   return (
     <div style={{
       position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
+      inset: 0,
       backgroundColor: 'rgba(0, 0, 0, 0.5)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 1000,
+      zIndex: 9999,
       padding: '1rem'
     }}>
-      <style>{`
-        @keyframes pulse {
-          0%, 100% {
-            opacity: 1;
-            transform: scale(1);
-          }
-          50% {
-            opacity: 0.5;
-            transform: scale(1.2);
-          }
-        }
-      `}</style>
       <div style={{
         backgroundColor: 'white',
-        borderRadius: '1rem',
+        borderRadius: '16px',
         width: '100%',
-        maxWidth: '1400px',
+        maxWidth: '1200px',
         maxHeight: '90vh',
-        overflow: 'hidden',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column',
+        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
       }}>
         {/* Header */}
         <div style={{
           padding: '1.5rem 2rem',
           borderBottom: '1px solid #E5E7EB',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
           backgroundColor: '#F9FAFB'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
-            <div>
-              <h2 style={{
-                margin: 0,
-                fontSize: '1.5rem',
-                fontWeight: '700',
-                color: '#1F2937'
-              }}>
-                {workOrder.wo_number}
-              </h2>
-              <p style={{
-                margin: '0.25rem 0 0 0',
-                fontSize: '1rem',
-                color: '#6B7280',
-                fontWeight: '500'
-              }}>
-                {workOrder.customer_name}
-              </p>
-            </div>
-
-            {/* Real-time Viewers */}
-            {viewers.length > 0 && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                padding: '0.5rem 0.75rem',
-                backgroundColor: '#EEF2FF',
-                borderRadius: '0.5rem',
-                border: '1px solid #C7D2FE'
-              }}>
-                <Eye size={16} style={{ color: '#6366F1' }} />
-                <div style={{
-                  fontSize: '0.75rem',
-                  color: '#4F46E5',
-                  fontWeight: '600'
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+                <h2 style={{
+                  margin: 0,
+                  fontSize: '1.75rem',
+                  fontWeight: '700',
+                  color: '#111827'
                 }}>
-                  {viewers.length === 1
-                    ? `${viewers[0].name} is viewing`
-                    : `${viewers.length} people viewing`}
-                </div>
-              </div>
-            )}
+                  {workOrder.wo_number}
+                </h2>
 
-            {/* Urgency Badge */}
-            {workOrder.call_urgency && workOrder.call_urgency !== 'Default' && (
-              <div style={{
-                padding: '0.5rem 1rem',
-                borderRadius: '0.5rem',
-                backgroundColor: getUrgencyColor(),
-                color: 'white',
-                fontSize: '0.875rem',
-                fontWeight: '600',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem'
-              }}>
-                <AlertTriangle size={14} />
-                {getUrgencyDisplay()}
-              </div>
-            )}
-
-            {/* Rate Type Badge */}
-            <div style={{
-              padding: '0.5rem 1rem',
-              borderRadius: '0.5rem',
-              backgroundColor: getRateTypeColor(),
-              color: 'white',
-              fontSize: '0.875rem',
-              fontWeight: '600'
-            }}>
-              {getRateTypeDisplay()}
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            {!isEditing ? (
-              <button
-                onClick={() => setIsEditing(true)}
-                style={{
-                  padding: '0.5rem 1rem',
-                  backgroundColor: '#3B82F6',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '0.375rem',
-                  cursor: 'pointer',
+                {/* Status Badge */}
+                <div style={{
+                  padding: '0.375rem 0.875rem',
+                  borderRadius: '9999px',
+                  backgroundColor: `${getStatusColor(workOrder.status)}20`,
+                  border: `2px solid ${getStatusColor(workOrder.status)}`,
                   fontSize: '0.875rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem'
-                }}
-              >
-                <Edit2 size={16} />
-                Edit
-              </button>
-            ) : (
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button
-                  onClick={() => setIsEditing(false)}
-                  style={{
-                    padding: '0.5rem 1rem',
-                    backgroundColor: '#6B7280',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '0.375rem',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem'
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSave}
-                  style={{
-                    padding: '0.5rem 1rem',
-                    backgroundColor: '#10B981',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '0.375rem',
-                    cursor: 'pointer',
+                  fontWeight: '600',
+                  color: getStatusColor(workOrder.status)
+                }}>
+                  {workOrder.status}
+                </div>
+
+                {/* Urgency Badge */}
+                {workOrder.call_urgency && workOrder.call_urgency !== 'Default' && (
+                  <div style={{
+                    padding: '0.375rem 0.875rem',
+                    borderRadius: '9999px',
+                    backgroundColor: `${urgencyConfig.color}20`,
+                    border: `2px solid ${urgencyConfig.color}`,
                     fontSize: '0.875rem',
+                    fontWeight: '600',
+                    color: urgencyConfig.color,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.25rem'
+                    gap: '0.375rem'
+                  }}>
+                    <span>{urgencyConfig.icon}</span>
+                    {urgencyConfig.label}
+                  </div>
+                )}
+              </div>
+
+              {/* Customer Name - Clickable */}
+              <div
+                onClick={() => onNavigateToCustomer?.(workOrder.customer_id)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  fontSize: '1.125rem',
+                  color: '#3B82F6',
+                  fontWeight: '600',
+                  cursor: onNavigateToCustomer ? 'pointer' : 'default',
+                  transition: 'color 0.2s'
+                }}
+                onMouseEnter={(e) => onNavigateToCustomer && (e.currentTarget.style.color = '#2563EB')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = '#3B82F6')}
+              >
+                <Building2 size={18} />
+                {workOrder.customer_name}
+              </div>
+
+              {/* Service Address */}
+              {workOrder.service_city && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.375rem',
+                  marginTop: '0.25rem',
+                  fontSize: '0.875rem',
+                  color: '#6B7280'
+                }}>
+                  <MapPin size={14} />
+                  {workOrder.service_city}
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              {/* Quick Actions */}
+              {workOrder.status !== 'Complete' && workOrder.status !== 'Completed' && (
+                <>
+                  {workOrder.status === 'Suspended' ? (
+                    <button
+                      onClick={handleResume}
+                      style={{
+                        padding: '0.625rem 1.25rem',
+                        backgroundColor: '#10B981',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '0.75rem',
+                        cursor: 'pointer',
+                        fontSize: '0.875rem',
+                        fontWeight: '600',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                      }}
+                    >
+                      <Play size={16} />
+                      Resume
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={handleSuspend}
+                        style={{
+                          padding: '0.625rem 1.25rem',
+                          backgroundColor: 'white',
+                          color: '#6B7280',
+                          border: '2px solid #E5E7EB',
+                          borderRadius: '0.75rem',
+                          cursor: 'pointer',
+                          fontSize: '0.875rem',
+                          fontWeight: '600',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem'
+                        }}
+                      >
+                        <Pause size={16} />
+                        Suspend
+                      </button>
+                      <button
+                        onClick={handleComplete}
+                        style={{
+                          padding: '0.625rem 1.25rem',
+                          backgroundColor: '#10B981',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '0.75rem',
+                          cursor: 'pointer',
+                          fontSize: '0.875rem',
+                          fontWeight: '600',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                        }}
+                      >
+                        <CheckCircle size={16} />
+                        Complete
+                      </button>
+                    </>
+                  )}
+                </>
+              )}
+
+              <button
+                onClick={onClose}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '0.5rem',
+                  borderRadius: '0.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  color: '#6B7280'
+                }}
+              >
+                <X size={24} />
+              </button>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div style={{
+            display: 'flex',
+            gap: '0.5rem',
+            borderBottom: '2px solid #E5E7EB',
+            marginTop: '1rem',
+            paddingBottom: '0px'
+          }}>
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  style={{
+                    padding: '0.75rem 1.25rem',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    borderBottom: isActive ? '3px solid #3B82F6' : '3px solid transparent',
+                    cursor: 'pointer',
+                    fontSize: '0.9375rem',
+                    fontWeight: isActive ? '700' : '500',
+                    color: isActive ? '#3B82F6' : '#6B7280',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    marginBottom: '-2px',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.color = '#374151';
+                      e.currentTarget.style.borderBottomColor = '#D1D5DB';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.color = '#6B7280';
+                      e.currentTarget.style.borderBottomColor = 'transparent';
+                    }
                   }}
                 >
-                  <Save size={16} />
-                  Save
+                  <Icon size={18} />
+                  {tab.label}
                 </button>
-              </div>
-            )}
-            
-            <button
-              onClick={onClose}
-              style={{
-                padding: '0.5rem',
-                backgroundColor: 'transparent',
-                color: '#6B7280',
-                border: '1px solid #D1D5DB',
-                borderRadius: '0.375rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center'
-              }}
-            >
-              <X size={20} />
-            </button>
+              );
+            })}
           </div>
-        </div>
-
-        {/* Tab Navigation */}
-        <div style={{
-          borderBottom: '1px solid #E5E7EB',
-          display: 'flex',
-          paddingLeft: '2rem',
-          overflowX: 'auto'
-        }}>
-          {[
-            { id: 'customer', label: 'Customer', icon: User },
-            { id: 'general', label: 'General', icon: FileText },
-            { id: 'register', label: 'Register', icon: CheckSquare },
-            { id: 'purchasing', label: 'Purchasing', icon: Package },
-            { id: 'attachments', label: 'Attachments', icon: Paperclip },
-            { id: 'assignments', label: 'Assignments', icon: Map }
-          ].map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setActiveTab(id as any)}
-              style={{
-                padding: '1rem 1.5rem',
-                backgroundColor: activeTab === id ? 'white' : 'transparent',
-                color: activeTab === id ? '#3B82F6' : '#6B7280',
-                border: 'none',
-                borderBottom: activeTab === id ? '2px solid #3B82F6' : '2px solid transparent',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: activeTab === id ? '600' : '500',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              <Icon size={16} />
-              {label}
-            </button>
-          ))}
         </div>
 
         {/* Content */}
         <div style={{
           flex: 1,
-          overflow: 'auto',
+          overflowY: 'auto',
           padding: '2rem'
         }}>
-          {activeTab === 'customer' && (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '1.5rem'
-            }}>
-              {/* Customer Information Card */}
-              <div style={{
-                backgroundColor: 'white',
-                borderRadius: '0.75rem',
-                border: '1px solid #E5E7EB',
-                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-                overflow: 'hidden'
-              }}>
+          {activeTab === 'details' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+              {/* Left Column */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {/* Problem Description */}
                 <div style={{
                   backgroundColor: '#F9FAFB',
-                  borderBottom: '1px solid #E5E7EB',
-                  padding: '1rem 1.5rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem'
-                }}>
-                  <User size={18} style={{ color: '#3B82F6' }} />
-                  <h3 style={{
-                    margin: 0,
-                    fontSize: '1rem',
-                    fontWeight: '600',
-                    color: '#1F2937'
-                  }}>
-                    Customer Information
-                  </h3>
-                </div>
-                <div style={{
+                  borderRadius: '0.75rem',
                   padding: '1.5rem',
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, 1fr)',
-                  gap: '1.5rem'
-                }}>
-                  <InfoRow
-                    icon={<User size={16} />}
-                    label="Customer Name"
-                    value={workOrder.customer_name}
-                  />
-                  <InfoRow
-                    icon={<MapPin size={16} />}
-                    label="Service City"
-                    value={workOrder.service_city || 'N/A'}
-                  />
-                  {workOrder.customer_zone && (
-                    <InfoRow
-                      icon={<Settings size={16} />}
-                      label="Zone"
-                      value={workOrder.customer_zone}
-                    />
-                  )}
-                  {workOrder.customer_po && (
-                    <InfoRow
-                      icon={<FileText size={16} />}
-                      label="Customer PO"
-                      value={workOrder.customer_po}
-                    />
-                  )}
-                </div>
-              </div>
-
-              {/* Service Address Card */}
-              <div style={{
-                backgroundColor: 'white',
-                borderRadius: '0.75rem',
-                border: '1px solid #E5E7EB',
-                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-                overflow: 'hidden'
-              }}>
-                <div style={{
-                  backgroundColor: '#F9FAFB',
-                  borderBottom: '1px solid #E5E7EB',
-                  padding: '1rem 1.5rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem'
-                }}>
-                  <MapPin size={18} style={{ color: '#3B82F6' }} />
-                  <h3 style={{
-                    margin: 0,
-                    fontSize: '1rem',
-                    fontWeight: '600',
-                    color: '#1F2937'
-                  }}>
-                    Service Location
-                  </h3>
-                </div>
-                <div style={{
-                  padding: '1.5rem'
+                  border: '2px solid #E5E7EB'
                 }}>
                   <div style={{
-                    backgroundColor: '#F9FAFB',
-                    padding: '1rem',
-                    borderRadius: '0.5rem',
-                    border: '1px solid #E5E7EB',
-                    fontSize: '0.875rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    marginBottom: '1rem'
+                  }}>
+                    <FileText size={20} style={{ color: '#3B82F6' }} />
+                    <h3 style={{
+                      margin: 0,
+                      fontSize: '1.125rem',
+                      fontWeight: '700',
+                      color: '#111827'
+                    }}>
+                      Problem Description
+                    </h3>
+                  </div>
+                  <p style={{
+                    margin: 0,
+                    fontSize: '0.9375rem',
+                    lineHeight: '1.6',
                     color: '#374151',
-                    lineHeight: '1.6'
+                    whiteSpace: 'pre-wrap'
                   }}>
-                    {workOrder.service_city || 'Service location not specified'}
-                  </div>
+                    {workOrder.problem_description || 'No description provided'}
+                  </p>
                 </div>
-              </div>
-            </div>
-          )}
 
-          {activeTab === 'general' && (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '1.5rem'
-            }}>
-              {/* Work Order Details Card */}
-              <div style={{
-                backgroundColor: 'white',
-                borderRadius: '0.75rem',
-                border: '1px solid #E5E7EB',
-                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-                overflow: 'hidden'
-              }}>
-                <div style={{
-                  backgroundColor: '#F9FAFB',
-                  borderBottom: '1px solid #E5E7EB',
-                  padding: '1rem 1.5rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem'
-                }}>
-                  <Calendar size={18} style={{ color: '#3B82F6' }} />
-                  <h3 style={{
-                    margin: 0,
-                    fontSize: '1rem',
-                    fontWeight: '600',
-                    color: '#1F2937'
-                  }}>
-                    Work Order Details
-                  </h3>
-                </div>
-                <div style={{
-                  padding: '1.5rem',
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(3, 1fr)',
-                  gap: '1.5rem'
-                }}>
-                  <InfoRow
-                    icon={<Calendar size={16} />}
-                    label="Created Date"
-                    value={new Date(workOrder.created_at || '').toLocaleDateString()}
-                  />
-                  {workOrder.scheduled_date && (
-                    <InfoRow
-                      icon={<Calendar size={16} />}
-                      label="Scheduled Date"
-                      value={new Date(workOrder.scheduled_date).toLocaleDateString()}
-                    />
-                  )}
-                  {workOrder.scheduled_time_slot && (
-                    <InfoRow
-                      icon={<Clock size={16} />}
-                      label="Time Slot"
-                      value={workOrder.scheduled_time_slot}
-                    />
-                  )}
-                  <InfoRow
-                    icon={<Settings size={16} />}
-                    label="Call Type"
-                    value={workOrder.call_type || 'Time and Material'}
-                  />
-                  <InfoRow
-                    icon={<DollarSign size={16} />}
-                    label="Rate Type"
-                    value={getRateTypeDisplay()}
-                  />
-                  <InfoRow
-                    icon={<AlertTriangle size={16} />}
-                    label="Urgency"
-                    value={getUrgencyDisplay()}
-                  />
-                </div>
-              </div>
-
-              {/* Equipment & Problem Description Card */}
-              <div style={{
-                backgroundColor: 'white',
-                borderRadius: '0.75rem',
-                border: '1px solid #E5E7EB',
-                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-                overflow: 'hidden'
-              }}>
-                <div style={{
-                  backgroundColor: '#F9FAFB',
-                  borderBottom: '1px solid #E5E7EB',
-                  padding: '1rem 1.5rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem'
-                }}>
-                  <Wrench size={18} style={{ color: '#3B82F6' }} />
-                  <h3 style={{
-                    margin: 0,
-                    fontSize: '1rem',
-                    fontWeight: '600',
-                    color: '#1F2937'
-                  }}>
-                    Equipment & Problem
-                  </h3>
-                </div>
-                <div style={{ padding: '1.5rem' }}>
-                  {/* Equipment Info Row */}
+                {/* Equipment Info */}
+                {workOrder.equipment_type && (
                   <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(2, 1fr)',
-                    gap: '1.5rem',
-                    marginBottom: '1.5rem'
+                    backgroundColor: 'white',
+                    borderRadius: '0.75rem',
+                    padding: '1.5rem',
+                    border: '2px solid #E5E7EB'
                   }}>
-                    {workOrder.equipment_type && (
-                      <InfoRow
-                        icon={<Wrench size={16} />}
-                        label="Equipment Type"
-                        value={workOrder.equipment_type}
-                      />
-                    )}
-                    {workOrder.equipment_number && (
-                      <InfoRow
-                        icon={<Wrench size={16} />}
-                        label="Equipment Number"
-                        value={workOrder.equipment_number}
-                      />
-                    )}
-                  </div>
-
-                  {/* Problem Description */}
-                  <div>
                     <div style={{
-                      fontSize: '0.875rem',
-                      fontWeight: '600',
-                      color: '#374151',
-                      marginBottom: '0.75rem',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '0.5rem',
-                      justifyContent: 'space-between'
+                      marginBottom: '1rem'
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <FileText size={16} style={{ color: '#6B7280' }} />
-                        Problem Description
+                      <Wrench size={20} style={{ color: '#3B82F6' }} />
+                      <h3 style={{
+                        margin: 0,
+                        fontSize: '1.125rem',
+                        fontWeight: '700',
+                        color: '#111827'
+                      }}>
+                        Equipment
+                      </h3>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.875rem', color: '#6B7280', fontWeight: '500' }}>Type:</span>
+                        <span style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '600' }}>{workOrder.equipment_type}</span>
                       </div>
-                      {/* Typing Indicator */}
-                      {typingIndicators['problem_description'] && (
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.375rem',
-                          padding: '0.25rem 0.625rem',
-                          backgroundColor: '#FEF3C7',
-                          borderRadius: '0.375rem',
-                          fontSize: '0.75rem',
-                          color: '#92400E',
-                          fontWeight: '500'
-                        }}>
-                          <div style={{
-                            width: '6px',
-                            height: '6px',
-                            borderRadius: '50%',
-                            backgroundColor: '#F59E0B',
-                            animation: 'pulse 1.5s ease-in-out infinite'
-                          }} />
-                          {typingIndicators['problem_description'].userName} is typing...
+                      {workOrder.equipment_number && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '0.875rem', color: '#6B7280', fontWeight: '500' }}>Number:</span>
+                          <span style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '600' }}>{workOrder.equipment_number}</span>
                         </div>
                       )}
                     </div>
-                    {isEditing ? (
-                      <textarea
-                        value={editedWorkOrder.problem_description || ''}
-                        onChange={(e) => {
-                          setEditedWorkOrder({
-                            ...editedWorkOrder,
-                            problem_description: e.target.value
-                          });
-                          startTyping('problem_description');
-                        }}
-                        onBlur={() => {
-                          stopTyping('problem_description');
-                          broadcastFieldChange('problem_description', editedWorkOrder.problem_description);
-                        }}
-                        style={{
-                          width: '100%',
-                          backgroundColor: 'white',
-                          padding: '1rem',
-                          borderRadius: '0.5rem',
-                          border: '2px solid #3B82F6',
-                          minHeight: '120px',
-                          fontSize: '0.875rem',
-                          color: '#374151',
-                          lineHeight: '1.5',
-                          fontFamily: 'inherit',
-                          resize: 'vertical'
-                        }}
-                        placeholder="Enter problem description..."
-                      />
-                    ) : (
-                      <div style={{
-                        backgroundColor: '#F9FAFB',
-                        padding: '1rem',
-                        borderRadius: '0.5rem',
-                        border: '1px solid #E5E7EB',
-                        minHeight: '100px',
-                        fontSize: '0.875rem',
-                        color: '#374151',
-                        lineHeight: '1.6'
-                      }}>
-                        {workOrder.problem_description || 'No problem description provided.'}
+                  </div>
+                )}
+
+                {/* Scheduling Info */}
+                <div style={{
+                  backgroundColor: 'white',
+                  borderRadius: '0.75rem',
+                  padding: '1.5rem',
+                  border: '2px solid #E5E7EB'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    marginBottom: '1rem'
+                  }}>
+                    <Calendar size={20} style={{ color: '#3B82F6' }} />
+                    <h3 style={{
+                      margin: 0,
+                      fontSize: '1.125rem',
+                      fontWeight: '700',
+                      color: '#111827'
+                    }}>
+                      Schedule
+                    </h3>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {workOrder.scheduled_date && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.875rem', color: '#6B7280', fontWeight: '500' }}>Date:</span>
+                        <span style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '600' }}>
+                          {new Date(workOrder.scheduled_date).toLocaleDateString('en-US', {
+                            weekday: 'short',
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </span>
                       </div>
                     )}
+                    {workOrder.scheduled_time_slot && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.875rem', color: '#6B7280', fontWeight: '500' }}>Time Slot:</span>
+                        <span style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '600' }}>{workOrder.scheduled_time_slot}</span>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '0.875rem', color: '#6B7280', fontWeight: '500' }}>Call Type:</span>
+                      <span style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '600' }}>{workOrder.call_type || 'Time and Material'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '0.875rem', color: '#6B7280', fontWeight: '500' }}>Call Rate:</span>
+                      <span style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '600' }}>
+                        {workOrder.call_rate === 'RT' ? 'Regular Time' : workOrder.call_rate === 'OT' ? 'Overtime' : 'Double Time'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Assignment & Status Card */}
-              <div style={{
-                backgroundColor: 'white',
-                borderRadius: '0.75rem',
-                border: '1px solid #E5E7EB',
-                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-                overflow: 'hidden'
-              }}>
-                <div style={{
-                  backgroundColor: '#F9FAFB',
-                  borderBottom: '1px solid #E5E7EB',
-                  padding: '1rem 1.5rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem'
-                }}>
-                  <User size={18} style={{ color: '#3B82F6' }} />
-                  <h3 style={{
-                    margin: 0,
-                    fontSize: '1rem',
-                    fontWeight: '600',
-                    color: '#1F2937'
+              {/* Right Column */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {/* Technician Assignment */}
+                {(workOrder.tech_first_name || workOrder.tech_last_name) && (
+                  <div style={{
+                    backgroundColor: 'white',
+                    borderRadius: '0.75rem',
+                    padding: '1.5rem',
+                    border: '2px solid #E5E7EB'
                   }}>
-                    Assignment & Status
-                  </h3>
-                </div>
-                <div style={{ padding: '1.5rem' }}>
-                  {workOrder.tech_first_name && (
-                    <div style={{ marginBottom: '1.5rem' }}>
-                      <InfoRow
-                        icon={<User size={16} />}
-                        label="Assigned Technician"
-                        value={`${workOrder.tech_first_name} ${workOrder.tech_last_name || ''}`}
-                      />
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      marginBottom: '1rem'
+                    }}>
+                      <User size={20} style={{ color: '#3B82F6' }} />
+                      <h3 style={{
+                        margin: 0,
+                        fontSize: '1.125rem',
+                        fontWeight: '700',
+                        color: '#111827'
+                      }}>
+                        Assigned Technician
+                      </h3>
                     </div>
-                  )}
-
-                  {workOrder.status_notes && (
-                    <div>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '1rem',
+                      padding: '1rem',
+                      backgroundColor: '#EFF6FF',
+                      borderRadius: '0.75rem',
+                      border: '2px solid #BFDBFE'
+                    }}>
                       <div style={{
-                        fontSize: '0.875rem',
-                        fontWeight: '600',
-                        color: '#374151',
-                        marginBottom: '0.75rem',
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '50%',
+                        backgroundColor: '#3B82F6',
+                        color: 'white',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '0.5rem'
+                        justifyContent: 'center',
+                        fontSize: '1.25rem',
+                        fontWeight: '700'
                       }}>
-                        <FileText size={16} style={{ color: '#6B7280' }} />
-                        Status Notes
+                        {workOrder.tech_first_name?.[0]}{workOrder.tech_last_name?.[0]}
                       </div>
-                      <div style={{
-                        backgroundColor: '#F9FAFB',
-                        padding: '1rem',
-                        borderRadius: '0.5rem',
-                        border: '1px solid #E5E7EB',
-                        fontSize: '0.875rem',
-                        color: '#374151',
-                        lineHeight: '1.6'
-                      }}>
-                        {workOrder.status_notes}
+                      <div>
+                        <div style={{
+                          fontSize: '1rem',
+                          fontWeight: '700',
+                          color: '#111827'
+                        }}>
+                          {workOrder.tech_first_name} {workOrder.tech_last_name}
+                        </div>
+                        <div style={{
+                          fontSize: '0.875rem',
+                          color: '#6B7280'
+                        }}>
+                          Technician
+                        </div>
                       </div>
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {!workOrder.tech_first_name && !workOrder.status_notes && (
+                {/* Work Performed (if completed) */}
+                {workOrder.work_performed && (
+                  <div style={{
+                    backgroundColor: '#F0FDF4',
+                    borderRadius: '0.75rem',
+                    padding: '1.5rem',
+                    border: '2px solid #86EFAC'
+                  }}>
                     <div style={{
-                      padding: '2rem',
-                      textAlign: 'center',
-                      color: '#9CA3AF',
-                      fontSize: '0.875rem'
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      marginBottom: '1rem'
                     }}>
-                      No assignment or status information available
+                      <CheckSquare size={20} style={{ color: '#10B981' }} />
+                      <h3 style={{
+                        margin: 0,
+                        fontSize: '1.125rem',
+                        fontWeight: '700',
+                        color: '#111827'
+                      }}>
+                        Work Performed
+                      </h3>
                     </div>
-                  )}
-                </div>
+                    <p style={{
+                      margin: 0,
+                      fontSize: '0.9375rem',
+                      lineHeight: '1.6',
+                      color: '#374151',
+                      whiteSpace: 'pre-wrap'
+                    }}>
+                      {workOrder.work_performed}
+                    </p>
+                  </div>
+                )}
+
+                {/* Cost Summary */}
+                {(workOrder.total_cost || workOrder.labor_hours) && (
+                  <div style={{
+                    backgroundColor: 'white',
+                    borderRadius: '0.75rem',
+                    padding: '1.5rem',
+                    border: '2px solid #E5E7EB'
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      marginBottom: '1rem'
+                    }}>
+                      <DollarSign size={20} style={{ color: '#3B82F6' }} />
+                      <h3 style={{
+                        margin: 0,
+                        fontSize: '1.125rem',
+                        fontWeight: '700',
+                        color: '#111827'
+                      }}>
+                        Cost Summary
+                      </h3>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      {workOrder.labor_hours && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '0.875rem', color: '#6B7280', fontWeight: '500' }}>Labor Hours:</span>
+                          <span style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '600' }}>{workOrder.labor_hours} hrs</span>
+                        </div>
+                      )}
+                      {workOrder.total_labor_cost && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '0.875rem', color: '#6B7280', fontWeight: '500' }}>Labor Cost:</span>
+                          <span style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '600' }}>${workOrder.total_labor_cost.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {workOrder.total_parts_cost && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '0.875rem', color: '#6B7280', fontWeight: '500' }}>Parts Cost:</span>
+                          <span style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '600' }}>${workOrder.total_parts_cost.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {workOrder.total_cost && (
+                        <>
+                          <div style={{ borderTop: '2px solid #E5E7EB', marginTop: '0.5rem', paddingTop: '0.75rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ fontSize: '1rem', color: '#111827', fontWeight: '700' }}>Total:</span>
+                              <span style={{ fontSize: '1.125rem', color: '#3B82F6', fontWeight: '700' }}>${workOrder.total_cost.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Customer PO */}
+                {workOrder.customer_po && (
+                  <div style={{
+                    backgroundColor: 'white',
+                    borderRadius: '0.75rem',
+                    padding: '1.5rem',
+                    border: '2px solid #E5E7EB'
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      marginBottom: '0.5rem'
+                    }}>
+                      <Receipt size={20} style={{ color: '#3B82F6' }} />
+                      <h3 style={{
+                        margin: 0,
+                        fontSize: '1.125rem',
+                        fontWeight: '700',
+                        color: '#111827'
+                      }}>
+                        Customer PO
+                      </h3>
+                    </div>
+                    <p style={{
+                      margin: 0,
+                      fontSize: '0.9375rem',
+                      color: '#374151',
+                      fontWeight: '600'
+                    }}>
+                      {workOrder.customer_po}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {activeTab === 'register' && (
-            <RegisterTab workOrderId={workOrder.id} isReadOnly={false} />
+          {activeTab === 'timeline' && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem',
+              maxWidth: '800px',
+              margin: '0 auto'
+            }}>
+              <div style={{
+                textAlign: 'center',
+                padding: '3rem',
+                color: '#9CA3AF'
+              }}>
+                <Activity size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
+                <p style={{ margin: 0, fontSize: '1.125rem', fontWeight: '500' }}>
+                  Timeline feature coming soon
+                </p>
+                <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem' }}>
+                  View status changes, updates, and activity history
+                </p>
+              </div>
+            </div>
           )}
 
-          {activeTab === 'purchasing' && (
-            <PurchasingTab workOrderId={workOrder.id} isReadOnly={false} />
+          {activeTab === 'parts' && (
+            <div style={{
+              textAlign: 'center',
+              padding: '3rem',
+              color: '#9CA3AF'
+            }}>
+              <Package size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
+              <p style={{ margin: 0, fontSize: '1.125rem', fontWeight: '500' }}>
+                Parts & Materials feature coming soon
+              </p>
+              <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem' }}>
+                Track parts used, costs, and inventory
+              </p>
+            </div>
+          )}
+
+          {activeTab === 'labor' && (
+            <div style={{
+              textAlign: 'center',
+              padding: '3rem',
+              color: '#9CA3AF'
+            }}>
+              <Clock size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
+              <p style={{ margin: 0, fontSize: '1.125rem', fontWeight: '500' }}>
+                Labor & Time feature coming soon
+              </p>
+              <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem' }}>
+                Log time entries, track labor hours, and costs
+              </p>
+            </div>
           )}
 
           {activeTab === 'attachments' && (
-            <AttachmentsTab workOrderId={workOrder.id} isReadOnly={false} />
-          )}
-
-          {activeTab === 'assignments' && (
-            <AssignmentsTab workOrderId={workOrder.id} />
+            <div style={{
+              textAlign: 'center',
+              padding: '3rem',
+              color: '#9CA3AF'
+            }}>
+              <Paperclip size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
+              <p style={{ margin: 0, fontSize: '1.125rem', fontWeight: '500' }}>
+                Attachments feature coming soon
+              </p>
+              <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem' }}>
+                Upload photos, documents, and files
+              </p>
+            </div>
           )}
         </div>
       </div>
     </div>
   );
 };
-
-// Helper Components
-const InfoSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <div>
-    <h4 style={{
-      margin: '0 0 1rem 0',
-      fontSize: '1rem',
-      fontWeight: '600',
-      color: '#1F2937',
-      borderBottom: '1px solid #E5E7EB',
-      paddingBottom: '0.5rem'
-    }}>
-      {title}
-    </h4>
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '0.75rem'
-    }}>
-      {children}
-    </div>
-  </div>
-);
-
-const InfoRow: React.FC<{ 
-  icon: React.ReactNode; 
-  label: string; 
-  value: string; 
-  isClickable?: boolean;
-}> = ({ icon, label, value, isClickable = false }) => (
-  <div style={{
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '0.75rem'
-  }}>
-    <div style={{
-      color: '#6B7280',
-      marginTop: '0.125rem',
-      flexShrink: 0
-    }}>
-      {icon}
-    </div>
-    <div style={{ flex: 1 }}>
-      <div style={{
-        fontSize: '0.75rem',
-        fontWeight: '500',
-        color: '#9CA3AF',
-        textTransform: 'uppercase',
-        letterSpacing: '0.05em',
-        marginBottom: '0.125rem'
-      }}>
-        {label}
-      </div>
-      <div style={{
-        fontSize: '0.875rem',
-        color: '#374151',
-        fontWeight: '500',
-        cursor: isClickable ? 'pointer' : 'default',
-        textDecoration: isClickable ? 'underline' : 'none'
-      }}>
-        {value}
-      </div>
-    </div>
-  </div>
-);
 
 export default WorkOrderDetails;
