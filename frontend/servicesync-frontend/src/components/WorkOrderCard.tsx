@@ -57,7 +57,7 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
   useEffect(() => {
     const fetchRecommendations = async () => {
       // Only show recommendations for unassigned work orders with equipment type
-      const isUnassigned = !workOrder.assigned_tech_id || workOrder.status === 'Open' || workOrder.status === 'Unassigned';
+      const isUnassigned = !workOrder.assigned_tech_id || workOrder.status === 'Active' || workOrder.status === 'Open' || workOrder.status === 'Unassigned';
       if (!isHovered || !isUnassigned || !workOrder.equipment_type) {
         setShowTooltip(false);
         return;
@@ -90,12 +90,13 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
     // Priority order: Special queues first, then status
     if (workOrder.completion_queue === 'Parts Ordered') return '#7C3AED'; // Dark purple
     if (workOrder.completion_queue === 'Ready to Schedule') return '#EAB308'; // Yellow
-    
+
     switch (workOrder.status) {
       case 'Suspended': return '#8B5CF6'; // Purple
       case 'Complete':
       case 'Completed': return '#1E40AF'; // Dark blue
       case 'In Progress': return '#10B981'; // Green (checked in)
+      case 'Active': return '#3B82F6'; // Blue
       case 'Assigned': return '#3B82F6'; // Blue
       case 'Open':
       case 'Unassigned':
@@ -165,6 +166,8 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
       case 'Complete':
       case 'Completed':
         return { text: 'Complete', color: '#1E40AF', bgColor: '#DBEAFE' };
+      case 'Active':
+        return { text: 'Active', color: '#3B82F6', bgColor: '#EFF6FF' };
       case 'Assigned':
         return { text: 'Assigned', color: '#3B82F6', bgColor: '#EFF6FF' };
       default:
@@ -355,7 +358,7 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
         }}>
           <MapPin size={12} />
           <span>
-            {workOrder.service_city}
+            {workOrder.service_city || 'Unknown City'}
             {workOrder.customer_zone && ` (${workOrder.customer_zone})`}
           </span>
         </div>
@@ -444,8 +447,8 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
         </div>
       )}
 
-      {/* Action Buttons - Activate, Complete, Suspend - Top-right corner on hover */}
-      {isHovered && (onActivate || onComplete || onSuspend) && (
+      {/* Action Buttons - Activate, Complete, Suspend - Always visible in header */}
+      {(onActivate || onComplete || onSuspend) && (
         <div
           style={{
             position: 'absolute',
@@ -564,8 +567,8 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({
         </div>
       )}
 
-      {/* Check-In/Check-Out Buttons - Small icons in top-left corner on hover */}
-      {showCheckInOut && isHovered && (canCheckIn || canCheckOut) && (
+      {/* Check-In/Check-Out Buttons - Small icons in top-left corner, always visible */}
+      {showCheckInOut && (canCheckIn || canCheckOut) && (
         <div
           style={{
             position: 'absolute',
