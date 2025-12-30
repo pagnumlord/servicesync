@@ -133,14 +133,9 @@ const QueueSelectionModal: React.FC<QueueSelectionModalProps> = ({
                     style={{ marginRight: '0.75rem' }}
                   />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: '500', marginBottom: '0.25rem' }}>
+                    <div style={{ fontWeight: '500' }}>
                       {queue.name}
                     </div>
-                    {queue.description && (
-                      <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                        {queue.description}
-                      </div>
-                    )}
                   </div>
                   <div
                     style={{

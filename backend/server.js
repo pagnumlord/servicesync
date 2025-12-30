@@ -2095,6 +2095,71 @@ app.put('/api/work-orders/:id/suspend', async (req, res) => {
  * @route PUT /api/work-orders/:id/resume
  * @description Resumes a suspended work order.
  */
+// Suspend work order
+app.put('/api/work-orders/:id/suspend', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const workOrderId = req.params.id;
+    const { suspension_reason, notes, expected_return_date } = req.body;
+
+    console.log(`⏸ Suspending work order ${workOrderId}: ${suspension_reason}`);
+
+    // Update work order status to Suspended
+    const result = await client.query(`
+      UPDATE work_orders
+      SET status = 'Suspended',
+          suspended_at = CURRENT_TIMESTAMP,
+          suspension_reason = $2,
+          expected_return_date = $3,
+          notes = COALESCE(notes || E'\n' || $4, $4),
+          last_status_change_at = CURRENT_TIMESTAMP
+      WHERE id = $1 AND status != 'Complete'
+      RETURNING *
+    `, [workOrderId, suspension_reason, expected_return_date, notes]);
+
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Work order not found or already completed' });
+    }
+
+    // Get full work order data with joins
+    const fullWOResult = await client.query(`
+      SELECT wo.*, c.name as customer_name, c.service_city, c.zone as customer_zone,
+             e.equipment_number, e.equipment_type,
+             t.first_name as tech_first_name, t.last_name as tech_last_name
+      FROM work_orders wo
+      LEFT JOIN customers c ON wo.customer_id = c.id
+      LEFT JOIN equipment e ON wo.equipment_id = e.id
+      LEFT JOIN technicians t ON wo.assigned_tech_id = t.id
+      WHERE wo.id = $1
+    `, [workOrderId]);
+
+    await client.query('COMMIT');
+
+    const workOrder = fullWOResult.rows[0];
+    console.log(`✅ Work order ${workOrderId} suspended successfully`);
+
+    // Emit real-time update
+    if (io) {
+      io.emit('workOrderUpdate', {
+        type: 'status_change',
+        workOrder,
+        affectedDates: [workOrder.scheduled_date].filter(Boolean)
+      });
+    }
+
+    res.json({ success: true, workOrder });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Suspend work order error:', error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 app.put('/api/work-orders/:id/resume', async (req, res) => {
   const client = await pool.connect();
   try {
