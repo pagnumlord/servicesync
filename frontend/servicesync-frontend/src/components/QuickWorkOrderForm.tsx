@@ -1,6 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { X, Search, Calendar, User, FileText } from 'lucide-react';
+import { X, Search, Calendar, User, FileText, Star, Award, TrendingUp } from 'lucide-react';
 import { Technician } from '../types';
+
+interface TechRecommendation {
+  technicianId: number;
+  firstName: string;
+  lastName: string;
+  crew: string;
+  rating: number;
+  totalJobs: number;
+  firstTimeFixRate?: number;
+  avgEfficiency?: number;
+  avgCustomerRating?: number;
+  certified?: boolean;
+  source: 'performance_data' | 'manual_skill';
+}
 
 interface Customer {
   id: number;
@@ -36,12 +50,15 @@ const QuickWorkOrderForm: React.FC<QuickWorkOrderFormProps> = ({
   const [searchResults, setSearchResults] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [recommendations, setRecommendations] = useState<TechRecommendation[]>([]);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
     problem_description: '',
     call_type: 'Service Call',
     call_urgency: 'Routine',
+    equipment_type: '',
     scheduled_date: preSelectedDate || new Date().toISOString().split('T')[0],
     assigned_tech_id: preSelectedTechId || '',
     scheduled_time_slot: ''
@@ -70,6 +87,32 @@ const QuickWorkOrderForm: React.FC<QuickWorkOrderFormProps> = ({
       setShowCustomerDropdown(false);
     }
   }, [searchQuery, customers]);
+
+  // Fetch tech recommendations when equipment type changes
+  useEffect(() => {
+    if (formData.equipment_type) {
+      fetchRecommendations(formData.equipment_type);
+    } else {
+      setRecommendations([]);
+    }
+  }, [formData.equipment_type]);
+
+  const fetchRecommendations = async (equipmentType: string) => {
+    setLoadingRecommendations(true);
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/technicians/recommendations?equipmentType=${encodeURIComponent(equipmentType)}&limit=5`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setRecommendations(data);
+      }
+    } catch (error) {
+      console.error('Failed to load recommendations:', error);
+    } finally {
+      setLoadingRecommendations(false);
+    }
+  };
 
   const loadCustomers = async () => {
     try {
@@ -109,6 +152,7 @@ const QuickWorkOrderForm: React.FC<QuickWorkOrderFormProps> = ({
         problem_description: formData.problem_description,
         call_type: formData.call_type,
         call_urgency: formData.call_urgency,
+        equipment_type: formData.equipment_type || null,
         scheduled_date: formData.scheduled_date || null,
         assigned_tech_id: formData.assigned_tech_id || null,
         scheduled_time_slot: formData.scheduled_time_slot || null,
@@ -120,10 +164,12 @@ const QuickWorkOrderForm: React.FC<QuickWorkOrderFormProps> = ({
       // Reset form
       setSelectedCustomer(null);
       setSearchQuery('');
+      setRecommendations([]);
       setFormData({
         problem_description: '',
         call_type: 'Service Call',
         call_urgency: 'Routine',
+        equipment_type: '',
         scheduled_date: new Date().toISOString().split('T')[0],
         assigned_tech_id: '',
         scheduled_time_slot: ''
@@ -344,6 +390,134 @@ const QuickWorkOrderForm: React.FC<QuickWorkOrderFormProps> = ({
               </select>
             </div>
           </div>
+
+          {/* Equipment Type */}
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#374151', marginBottom: '0.5rem' }}>
+              Equipment Type
+            </label>
+            <select
+              value={formData.equipment_type}
+              onChange={(e) => setFormData({ ...formData, equipment_type: e.target.value })}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '0.5rem',
+                fontSize: '0.875rem',
+                backgroundColor: 'white'
+              }}
+            >
+              <option value="">Select Equipment Type</option>
+              <option value="Steamer">Steamer</option>
+              <option value="Oven">Oven</option>
+              <option value="Fryer">Fryer</option>
+              <option value="Griddle">Griddle</option>
+              <option value="Walk-in Cooler">Walk-in Cooler</option>
+              <option value="Reach-in Cooler">Reach-in Cooler</option>
+              <option value="Freezer">Freezer</option>
+              <option value="Ice Machine">Ice Machine</option>
+              <option value="HVAC Unit">HVAC Unit</option>
+              <option value="Dishwasher">Dishwasher</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          {/* Tech Recommendations */}
+          {formData.equipment_type && recommendations.length > 0 && (
+            <div style={{
+              marginBottom: '1.5rem',
+              padding: '1rem',
+              backgroundColor: '#f0f9ff',
+              border: '2px solid #3b82f6',
+              borderRadius: '0.75rem'
+            }}>
+              <div style={{
+                fontSize: '0.875rem',
+                fontWeight: '700',
+                color: '#1e40af',
+                marginBottom: '0.75rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <Award style={{ width: '1.25rem', height: '1.25rem' }} />
+                💡 Recommended Technicians for {formData.equipment_type}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {recommendations.map((rec) => (
+                  <div
+                    key={rec.technicianId}
+                    onClick={() => setFormData({ ...formData, assigned_tech_id: rec.technicianId.toString() })}
+                    style={{
+                      padding: '0.75rem',
+                      backgroundColor: formData.assigned_tech_id === rec.technicianId.toString() ? '#dbeafe' : 'white',
+                      border: `2px solid ${formData.assigned_tech_id === rec.technicianId.toString() ? '#3b82f6' : '#e5e7eb'}`,
+                      borderRadius: '0.5rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (formData.assigned_tech_id !== rec.technicianId.toString()) {
+                        e.currentTarget.style.borderColor = '#93c5fd';
+                        e.currentTarget.style.backgroundColor = '#f9fafb';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (formData.assigned_tech_id !== rec.technicianId.toString()) {
+                        e.currentTarget.style.borderColor = '#e5e7eb';
+                        e.currentTarget.style.backgroundColor = 'white';
+                      }
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontWeight: '700', fontSize: '0.875rem', color: '#1f2937' }}>
+                          {rec.firstName} {rec.lastName}
+                          {rec.certified && (
+                            <span style={{
+                              marginLeft: '0.5rem',
+                              fontSize: '0.75rem',
+                              backgroundColor: '#10b981',
+                              color: 'white',
+                              padding: '0.125rem 0.375rem',
+                              borderRadius: '0.25rem',
+                              fontWeight: '600'
+                            }}>
+                              CERTIFIED
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                          {rec.crew}
+                          {rec.totalJobs > 0 && ` • ${rec.totalJobs} jobs`}
+                          {rec.firstTimeFixRate && ` • ${Math.round(rec.firstTimeFixRate * 100)}% first-time fix`}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <Star
+                            key={i}
+                            size={16}
+                            fill={i < Math.round(rec.rating) ? '#fbbf24' : 'none'}
+                            stroke={i < Math.round(rec.rating) ? '#fbbf24' : '#d1d5db'}
+                          />
+                        ))}
+                        <span style={{ marginLeft: '0.25rem', fontSize: '0.875rem', fontWeight: '700', color: '#1f2937' }}>
+                          {rec.rating.toFixed(1)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {loadingRecommendations && (
+                <div style={{ textAlign: 'center', color: '#6b7280', fontSize: '0.875rem', padding: '1rem' }}>
+                  Loading recommendations...
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Scheduled Date and Tech Assignment */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
