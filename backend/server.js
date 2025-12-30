@@ -793,14 +793,14 @@ app.get('/api/customers/search', async (req, res) => {
 
     const result = await pool.query(`
       SELECT
-        id, name, primary_contact_phone as phone, service_address_line1 as service_address, 
-        service_city, service_state, service_zip, zone, business_type as customer_type, 
+        id, name, phone, service_address,
+        service_city, service_state, service_zip, zone, customer_type,
         is_active, created_at
       FROM customers
       WHERE (
         LOWER(name) LIKE $1
-        OR LOWER(COALESCE(primary_contact_phone, '')) LIKE $1
-        OR LOWER(COALESCE(service_address_line1, '')) LIKE $1
+        OR LOWER(COALESCE(phone, '')) LIKE $1
+        OR LOWER(COALESCE(service_address, '')) LIKE $1
         OR LOWER(COALESCE(service_city, '')) LIKE $1
       )
       ${activeFilter}
