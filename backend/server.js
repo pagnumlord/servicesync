@@ -2746,6 +2746,249 @@ app.delete('/api/technicians/:id/photo', async (req, res) => {
 });
 
 // ================================
+// TECHNICIAN SKILLS & RECOMMENDATIONS
+// ================================
+
+/**
+ * @route GET /api/technicians/recommendations
+ * @description Get recommended technicians for a specific equipment type
+ * @query equipmentType - Type of equipment (Steamer, Chiller, etc.)
+ * @query limit - Maximum number of recommendations (default 5)
+ */
+app.get('/api/technicians/recommendations', async (req, res) => {
+  try {
+    const { equipmentType, limit = 5 } = req.query;
+
+    if (!equipmentType) {
+      return res.status(400).json({ error: 'equipmentType query parameter is required' });
+    }
+
+    console.log(`⭐ Getting tech recommendations for: ${equipmentType}`);
+
+    // Get ratings from the view
+    const result = await pool.query(`
+      SELECT
+        technician_id,
+        first_name,
+        last_name,
+        crew,
+        equipment_type,
+        total_jobs,
+        first_time_fix_rate,
+        avg_efficiency,
+        avg_customer_rating,
+        overall_rating
+      FROM technician_equipment_ratings
+      WHERE LOWER(equipment_type) = LOWER($1)
+      ORDER BY overall_rating DESC, total_jobs DESC
+      LIMIT $2
+    `, [equipmentType, limit]);
+
+    // Also get manual skills for techs who might not have performance data yet
+    const skillsResult = await pool.query(`
+      SELECT
+        ts.technician_id,
+        t.first_name,
+        t.last_name,
+        t.crew,
+        ts.proficiency_level as manual_rating,
+        ts.certified,
+        0 as total_jobs
+      FROM technician_skills ts
+      JOIN technicians t ON ts.technician_id = t.id
+      WHERE LOWER(ts.skill_name) = LOWER($1)
+        AND ts.skill_category = 'equipment_type'
+        AND ts.technician_id NOT IN (
+          SELECT technician_id FROM technician_equipment_ratings
+          WHERE LOWER(equipment_type) = LOWER($1)
+        )
+      ORDER BY ts.proficiency_level DESC
+      LIMIT $2
+    `, [equipmentType, limit]);
+
+    // Combine results
+    const recommendations = [
+      ...result.rows.map(r => ({
+        technicianId: r.technician_id,
+        firstName: r.first_name,
+        lastName: r.last_name,
+        crew: r.crew,
+        rating: parseFloat(r.overall_rating),
+        totalJobs: parseInt(r.total_jobs),
+        firstTimeFixRate: parseFloat(r.first_time_fix_rate),
+        avgEfficiency: parseFloat(r.avg_efficiency),
+        avgCustomerRating: parseFloat(r.avg_customer_rating),
+        source: 'performance_data'
+      })),
+      ...skillsResult.rows.map(r => ({
+        technicianId: r.technician_id,
+        firstName: r.first_name,
+        lastName: r.last_name,
+        crew: r.crew,
+        rating: r.manual_rating,
+        totalJobs: 0,
+        certified: r.certified,
+        source: 'manual_skill'
+      }))
+    ].slice(0, limit);
+
+    console.log(`✅ Found ${recommendations.length} tech recommendations`);
+    res.json(recommendations);
+  } catch (error) {
+    console.error('❌ Get recommendations error:', error);
+    res.status(500).json({ error: 'Failed to get recommendations' });
+  }
+});
+
+/**
+ * @route GET /api/technicians/:id/skills
+ * @description Get all skills for a specific technician
+ */
+app.get('/api/technicians/:id/skills', async (req, res) => {
+  try {
+    const technicianId = req.params.id;
+
+    const result = await pool.query(`
+      SELECT * FROM technician_skills
+      WHERE technician_id = $1
+      ORDER BY skill_category, proficiency_level DESC
+    `, [technicianId]);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('❌ Get technician skills error:', error);
+    res.status(500).json({ error: 'Failed to get technician skills' });
+  }
+});
+
+/**
+ * @route POST /api/technicians/:id/skills
+ * @description Add or update a skill for a technician
+ */
+app.post('/api/technicians/:id/skills', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const technicianId = req.params.id;
+    const { skillCategory, skillName, proficiencyLevel, certified, certificationDate, notes } = req.body;
+
+    console.log(`📚 Adding skill for technician ${technicianId}: ${skillName}`);
+
+    const result = await client.query(`
+      INSERT INTO technician_skills (
+        technician_id, skill_category, skill_name, proficiency_level,
+        certified, certification_date, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      ON CONFLICT (technician_id, skill_category, skill_name)
+      DO UPDATE SET
+        proficiency_level = EXCLUDED.proficiency_level,
+        certified = EXCLUDED.certified,
+        certification_date = EXCLUDED.certification_date,
+        notes = EXCLUDED.notes,
+        updated_at = NOW()
+      RETURNING *
+    `, [technicianId, skillCategory, skillName, proficiencyLevel, certified, certificationDate, notes]);
+
+    await client.query('COMMIT');
+
+    console.log('✅ Skill added/updated successfully');
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Add skill error:', error);
+    res.status(500).json({ error: 'Failed to add skill' });
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * @route POST /api/work-orders/:id/performance
+ * @description Record performance data when a work order is completed
+ */
+app.post('/api/work-orders/:id/performance', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const workOrderId = req.params.id;
+    const {
+      technicianId,
+      completionStatus,
+      firstTimeFix,
+      callbackRequired,
+      estimatedHours,
+      actualHours,
+      customerRating,
+      customerFeedback,
+      quotedAmount,
+      finalAmount,
+      partsSold
+    } = req.body;
+
+    // Get work order details
+    const woResult = await client.query(`
+      SELECT equipment_type, call_type as job_type
+      FROM work_orders
+      WHERE id = $1
+    `, [workOrderId]);
+
+    if (woResult.rows.length === 0) {
+      throw new Error('Work order not found');
+    }
+
+    const { equipment_type, job_type } = woResult.rows[0];
+
+    // Calculate efficiency rating
+    const efficiencyRating = actualHours && estimatedHours ?
+      (actualHours / estimatedHours) : null;
+
+    console.log(`📊 Recording performance for WO ${workOrderId}, Tech ${technicianId}`);
+
+    const result = await client.query(`
+      INSERT INTO technician_performance (
+        technician_id, work_order_id, equipment_type, job_type,
+        completion_status, first_time_fix, callback_required,
+        estimated_hours, actual_hours, efficiency_rating,
+        customer_rating, customer_feedback,
+        quoted_amount, final_amount, parts_sold,
+        completed_date
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_DATE)
+      ON CONFLICT (work_order_id, technician_id)
+      DO UPDATE SET
+        completion_status = EXCLUDED.completion_status,
+        first_time_fix = EXCLUDED.first_time_fix,
+        callback_required = EXCLUDED.callback_required,
+        actual_hours = EXCLUDED.actual_hours,
+        efficiency_rating = EXCLUDED.efficiency_rating,
+        customer_rating = EXCLUDED.customer_rating,
+        customer_feedback = EXCLUDED.customer_feedback,
+        final_amount = EXCLUDED.final_amount,
+        parts_sold = EXCLUDED.parts_sold
+      RETURNING *
+    `, [
+      technicianId, workOrderId, equipment_type, job_type,
+      completionStatus, firstTimeFix, callbackRequired,
+      estimatedHours, actualHours, efficiencyRating,
+      customerRating, customerFeedback,
+      quotedAmount, finalAmount, partsSold
+    ]);
+
+    await client.query('COMMIT');
+
+    console.log('✅ Performance data recorded successfully');
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Record performance error:', error);
+    res.status(500).json({ error: 'Failed to record performance' });
+  } finally {
+    client.release();
+  }
+});
+
+// ================================
 // EQUIPMENT ROUTES
 // ================================
 
