@@ -3001,7 +3001,20 @@ app.get('/api/customers/:id/equipment', async (req, res) => {
   try {
     const customerId = req.params.id;
     console.log(`🔧 Getting equipment for customer ID: ${customerId}`);
-1
+
+    // Check if equipment table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_name = 'equipment'
+      );
+    `);
+
+    if (!tableCheck.rows[0].exists) {
+      console.log('⚠️ Equipment table does not exist, returning empty array');
+      return res.json([]);
+    }
+
     const result = await pool.query(`
       SELECT * FROM equipment
       WHERE customer_id = $1 AND is_active = true
