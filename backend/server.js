@@ -1861,12 +1861,12 @@ app.put('/api/work-orders/:id/unassign', async (req, res) => {
     const result = await client.query(`
       UPDATE work_orders
       SET assigned_tech_id = NULL,
-          status = CASE 
-            WHEN status IN ('Assigned', 'In Progress') THEN 'Open'
+          status = CASE
+            WHEN status IN ('Assigned', 'In Progress') THEN 'Active'
             ELSE status
           END,
           scheduled_date = NULL,
-          scheduled_time_slot = NULL,
+          scheduled_time_slot = NULL
       WHERE id = $1
       RETURNING *
     `, [workOrderId]);
