@@ -2263,7 +2263,7 @@ app.put('/api/work-orders/:id/move', async (req, res) => {
 
     switch (destination) {
       case 'unassigned':
-        newStatus = 'Open';
+        newStatus = 'Active';
         completionQueue = null;
         break;
       case 'parts_ordered':
@@ -2271,7 +2271,7 @@ app.put('/api/work-orders/:id/move', async (req, res) => {
         completionQueue = 'Parts Ordered';
         break;
       case 'ready_to_schedule':
-        newStatus = 'Open';
+        newStatus = 'Active';
         completionQueue = 'Ready to Schedule';
         break;
     }
@@ -2282,18 +2282,18 @@ app.put('/api/work-orders/:id/move', async (req, res) => {
       SET status = $2,
           completion_queue = $3,
           status_notes = $4,
-          assigned_tech_id = CASE 
-            WHEN $5 = 'unassigned' THEN NULL 
-            ELSE assigned_tech_id 
+          assigned_tech_id = CASE
+            WHEN $5 = 'unassigned' THEN NULL
+            ELSE assigned_tech_id
           END,
-          scheduled_date = CASE 
-            WHEN $5 = 'unassigned' THEN NULL 
-            ELSE scheduled_date 
+          scheduled_date = CASE
+            WHEN $5 = 'unassigned' THEN NULL
+            ELSE scheduled_date
           END,
-          scheduled_time_slot = CASE 
-            WHEN $5 = 'unassigned' THEN NULL 
-            ELSE scheduled_time_slot 
-          END,
+          scheduled_time_slot = CASE
+            WHEN $5 = 'unassigned' THEN NULL
+            ELSE scheduled_time_slot
+          END
       WHERE id = $1
       RETURNING *
     `, [workOrderId, newStatus, completionQueue, notes || `Moved to ${destination}`, destination]);
