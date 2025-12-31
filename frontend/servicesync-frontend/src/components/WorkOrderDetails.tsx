@@ -58,6 +58,12 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
   const [technicians, setTechnicians] = useState<any[]>([]);
   const [loadingTechnicians, setLoadingTechnicians] = useState(false);
 
+  // Attachments state
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [loadingAttachments, setLoadingAttachments] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+
   const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
   const timeSlots = [
@@ -77,6 +83,13 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
   useEffect(() => {
     if (activeTab === 'assignments' && technicians.length === 0) {
       loadTechnicians();
+    }
+  }, [activeTab]);
+
+  // Load attachments when Attachments tab is active
+  useEffect(() => {
+    if (activeTab === 'attachments') {
+      loadAttachments();
     }
   }, [activeTab]);
 
@@ -154,6 +167,88 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
     } catch (error) {
       console.error('Error updating assignment:', error);
     }
+  };
+
+  const loadAttachments = async () => {
+    setLoadingAttachments(true);
+    try {
+      const response = await fetch(`${API_BASE}/work-orders/${workOrder.id}/attachments`);
+      if (response.ok) {
+        const data = await response.json();
+        setAttachments(data.attachments || []);
+      }
+    } catch (error) {
+      console.error('Error loading attachments:', error);
+    } finally {
+      setLoadingAttachments(false);
+    }
+  };
+
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    setUploadingFiles(true);
+    const formData = new FormData();
+
+    for (let i = 0; i < files.length; i++) {
+      formData.append('files', files[i]);
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/work-orders/${workOrder.id}/attachments`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (response.ok) {
+        await loadAttachments(); // Reload attachments list
+      } else {
+        console.error('Upload failed:', await response.text());
+      }
+    } catch (error) {
+      console.error('Error uploading files:', error);
+    } finally {
+      setUploadingFiles(false);
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId: number) => {
+    if (!confirm('Are you sure you want to delete this attachment?')) return;
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/work-orders/${workOrder.id}/attachments/${attachmentId}`,
+        { method: 'DELETE' }
+      );
+
+      if (response.ok) {
+        await loadAttachments(); // Reload attachments list
+      }
+    } catch (error) {
+      console.error('Error deleting attachment:', error);
+    }
+  };
+
+  const getFileIcon = (filename: string) => {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    switch (ext) {
+      case 'pdf': return '📄';
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif': return '🖼️';
+      case 'doc':
+      case 'docx': return '📝';
+      case 'xls':
+      case 'xlsx': return '📊';
+      default: return '📎';
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
   if (!isOpen) return null;
@@ -1159,17 +1254,183 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
 
           {activeTab === 'attachments' && (
             <div style={{
-              textAlign: 'center',
-              padding: '3rem',
-              color: '#9CA3AF'
+              maxWidth: '900px',
+              margin: '0 auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.5rem'
             }}>
-              <Paperclip size={48} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
-              <p style={{ margin: 0, fontSize: '1.125rem', fontWeight: '500' }}>
-                Attachments feature coming soon
-              </p>
-              <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem' }}>
-                Upload photos, documents, and files
-              </p>
+              {/* Upload Area */}
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  handleFileUpload(e.dataTransfer.files);
+                }}
+                style={{
+                  border: `2px dashed ${dragOver ? '#3B82F6' : '#D1D5DB'}`,
+                  borderRadius: '0.75rem',
+                  padding: '2rem',
+                  textAlign: 'center',
+                  backgroundColor: dragOver ? '#EFF6FF' : '#F9FAFB',
+                  transition: 'all 0.2s',
+                  cursor: 'pointer'
+                }}
+                onClick={() => document.getElementById('file-input')?.click()}
+              >
+                <input
+                  id="file-input"
+                  type="file"
+                  multiple
+                  onChange={(e) => handleFileUpload(e.target.files)}
+                  style={{ display: 'none' }}
+                />
+                <Paperclip size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
+                <p style={{ margin: 0, fontSize: '1.125rem', fontWeight: '600', color: '#111827' }}>
+                  {uploadingFiles ? 'Uploading...' : 'Drop files here or click to browse'}
+                </p>
+                <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem', color: '#6B7280' }}>
+                  Upload photos, documents, PDFs, and other files
+                </p>
+              </div>
+
+              {/* Attachments List */}
+              {loadingAttachments ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: '#9CA3AF' }}>
+                  Loading attachments...
+                </div>
+              ) : attachments.length === 0 ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '2rem',
+                  color: '#9CA3AF',
+                  backgroundColor: 'white',
+                  border: '2px solid #E5E7EB',
+                  borderRadius: '0.75rem'
+                }}>
+                  <Paperclip size={32} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
+                  <p style={{ margin: 0, fontSize: '0.9375rem' }}>No attachments yet</p>
+                </div>
+              ) : (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+                  gap: '1rem'
+                }}>
+                  {attachments.map((attachment) => (
+                    <div
+                      key={attachment.id}
+                      style={{
+                        backgroundColor: 'white',
+                        border: '2px solid #E5E7EB',
+                        borderRadius: '0.75rem',
+                        padding: '1rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.75rem',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = '#3B82F6';
+                        e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = '#E5E7EB';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
+                      {/* File Icon and Name */}
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                        <span style={{ fontSize: '2rem' }}>{getFileIcon(attachment.filename)}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            fontSize: '0.875rem',
+                            fontWeight: '600',
+                            color: '#111827',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {attachment.filename}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: '0.25rem' }}>
+                            {attachment.file_size && formatFileSize(attachment.file_size)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Upload Info */}
+                      {attachment.uploaded_at && (
+                        <div style={{
+                          fontSize: '0.75rem',
+                          color: '#9CA3AF',
+                          paddingTop: '0.5rem',
+                          borderTop: '1px solid #E5E7EB'
+                        }}>
+                          {new Date(attachment.uploaded_at).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit'
+                          })}
+                        </div>
+                      )}
+
+                      {/* Actions */}
+                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                        <a
+                          href={`http://localhost:5000${attachment.file_path}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            flex: 1,
+                            padding: '0.5rem',
+                            backgroundColor: '#3B82F6',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '0.375rem',
+                            fontSize: '0.8125rem',
+                            fontWeight: '500',
+                            textAlign: 'center',
+                            textDecoration: 'none',
+                            cursor: 'pointer',
+                            transition: 'background-color 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563EB'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3B82F6'}
+                        >
+                          <Eye size={14} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} />
+                          View
+                        </a>
+                        <button
+                          onClick={() => handleDeleteAttachment(attachment.id)}
+                          style={{
+                            padding: '0.5rem',
+                            backgroundColor: '#EF4444',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '0.375rem',
+                            fontSize: '0.8125rem',
+                            fontWeight: '500',
+                            cursor: 'pointer',
+                            transition: 'background-color 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#DC2626'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#EF4444'}
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
