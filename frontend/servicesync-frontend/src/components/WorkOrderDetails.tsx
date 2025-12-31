@@ -1347,7 +1347,7 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
                     >
                       {/* File Icon and Name */}
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-                        <span style={{ fontSize: '2rem' }}>{getFileIcon(attachment.filename)}</span>
+                        <span style={{ fontSize: '2rem' }}>{getFileIcon(attachment.file_name)}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{
                             fontSize: '0.875rem',
@@ -1357,7 +1357,7 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap'
                           }}>
-                            {attachment.filename}
+                            {attachment.file_name}
                           </div>
                           <div style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: '0.25rem' }}>
                             {attachment.file_size && formatFileSize(attachment.file_size)}
