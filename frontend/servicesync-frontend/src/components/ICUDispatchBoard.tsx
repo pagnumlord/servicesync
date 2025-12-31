@@ -151,6 +151,13 @@ function ICUDispatchBoard({
   const [showQuickWorkOrderForm, setShowQuickWorkOrderForm] = useState(false);
   const [selectedWorkOrder, setSelectedWorkOrder] = useState<EnhancedWorkOrder | null>(null);
 
+  // User role for controlling tech-only features (Check In button, etc.)
+  // Default to 'office' - will be replaced with proper authentication later
+  const [userRole, setUserRole] = useState<'office' | 'technician'>(() => {
+    const saved = localStorage.getItem('userRole');
+    return (saved === 'technician' || saved === 'office') ? saved : 'office';
+  });
+
   // Enhanced WebSocket connection
   const {
     isConnected,
@@ -1056,6 +1063,56 @@ function ICUDispatchBoard({
               📅 Calendar
             </button>
           </div>
+
+          {/* Role toggle - temporary until authentication is implemented */}
+          <div style={{
+            display: 'flex',
+            gap: '0.25rem',
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: '0.5rem',
+            padding: '0.25rem'
+          }}>
+            <button
+              onClick={() => {
+                setUserRole('office');
+                localStorage.setItem('userRole', 'office');
+              }}
+              style={{
+                backgroundColor: userRole === 'office' ? '#10B981' : 'transparent',
+                color: 'white',
+                border: 'none',
+                padding: '0.5rem 0.875rem',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                fontSize: '0.75rem',
+                fontWeight: '600',
+                transition: 'all 0.2s',
+                boxShadow: userRole === 'office' ? '0 2px 4px rgba(16, 185, 129, 0.3)' : 'none'
+              }}
+            >
+              🏢 Office
+            </button>
+            <button
+              onClick={() => {
+                setUserRole('technician');
+                localStorage.setItem('userRole', 'technician');
+              }}
+              style={{
+                backgroundColor: userRole === 'technician' ? '#10B981' : 'transparent',
+                color: 'white',
+                border: 'none',
+                padding: '0.5rem 0.875rem',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                fontSize: '0.75rem',
+                fontWeight: '600',
+                transition: 'all 0.2s',
+                boxShadow: userRole === 'technician' ? '0 2px 4px rgba(16, 185, 129, 0.3)' : 'none'
+              }}
+            >
+              🔧 Tech
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1204,7 +1261,7 @@ function ICUDispatchBoard({
                             onContextMenu={(e) => handleContextMenu(e, workOrder)}
                             onCheckIn={handleCheckIn}
                             onCheckOut={handleCheckOut}
-                            showCheckInOut={true}
+                            showCheckInOut={userRole === 'technician'}
                             isSelected={selectedWorkOrder?.id === workOrder.id}
                           />
                         </div>
@@ -1294,7 +1351,7 @@ function ICUDispatchBoard({
                             onContextMenu={(e) => handleContextMenu(e, workOrder)}
                             onCheckIn={handleCheckIn}
                             onCheckOut={handleCheckOut}
-                            showCheckInOut={true}
+                            showCheckInOut={userRole === 'technician'}
                             isSelected={selectedWorkOrder?.id === workOrder.id}
                           />
                         </div>
@@ -1383,7 +1440,7 @@ function ICUDispatchBoard({
                             onContextMenu={(e) => handleContextMenu(e, workOrder)}
                             onCheckIn={handleCheckIn}
                             onCheckOut={handleCheckOut}
-                            showCheckInOut={true}
+                            showCheckInOut={userRole === 'technician'}
                             isSelected={selectedWorkOrder?.id === workOrder.id}
                           />
                         </div>
