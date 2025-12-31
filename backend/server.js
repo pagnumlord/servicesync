@@ -1779,13 +1779,13 @@ app.put('/api/work-orders/:id/assign', async (req, res) => {
     console.log(`👨‍🔧 Assigning work order ${workOrderId} to tech ${tech_id}`);
 
     const result = await client.query(`
-      UPDATE work_orders 
-      SET assigned_tech_id = $2, 
-          status = 'Assigned',
+      UPDATE work_orders
+      SET assigned_tech_id = $2,
+          status = 'Active',
           scheduled_date = $3,
           scheduled_time_slot = $4,
           last_status_change_at = CURRENT_TIMESTAMP
-      WHERE id = $1 
+      WHERE id = $1
       RETURNING *
     `, [workOrderId, tech_id, scheduled_date, scheduled_time_slot]);
 
