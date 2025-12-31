@@ -53,9 +53,108 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editedWorkOrder, setEditedWorkOrder] = useState<WorkOrder>(workOrder);
 
+  // Assignment editing state
+  const [editingField, setEditingField] = useState<'tech' | 'date' | 'timeslot' | null>(null);
+  const [technicians, setTechnicians] = useState<any[]>([]);
+  const [loadingTechnicians, setLoadingTechnicians] = useState(false);
+
+  const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
+  const timeSlots = [
+    'First AM',
+    'AM',
+    'Lunch',
+    'PM',
+    'Last PM',
+    'Unscheduled'
+  ];
+
   useEffect(() => {
     setEditedWorkOrder(workOrder);
   }, [workOrder]);
+
+  // Load technicians when Assignments tab is active
+  useEffect(() => {
+    if (activeTab === 'assignments' && technicians.length === 0) {
+      loadTechnicians();
+    }
+  }, [activeTab]);
+
+  const loadTechnicians = async () => {
+    setLoadingTechnicians(true);
+    try {
+      const response = await fetch(`${API_BASE}/technicians`);
+      if (response.ok) {
+        const data = await response.json();
+        setTechnicians(data);
+      }
+    } catch (error) {
+      console.error('Error loading technicians:', error);
+    } finally {
+      setLoadingTechnicians(false);
+    }
+  };
+
+  const handleAssignmentUpdate = async (field: 'tech' | 'date' | 'timeslot', value: any) => {
+    try {
+      let endpoint = '';
+      let body: any = {};
+
+      if (field === 'tech') {
+        if (value === null) {
+          // Unassign
+          endpoint = `${API_BASE}/work-orders/${workOrder.id}/unassign`;
+          const response = await fetch(endpoint, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notes: 'Unassigned from work order details' })
+          });
+          if (response.ok && onUpdate) {
+            const updated = await response.json();
+            onUpdate(updated.workOrder);
+          }
+        } else {
+          // Assign to tech
+          endpoint = `${API_BASE}/work-orders/${workOrder.id}/assign`;
+          body = {
+            tech_id: value,
+            scheduled_date: workOrder.scheduled_date || new Date().toISOString().split('T')[0],
+            scheduled_time_slot: workOrder.scheduled_time_slot || 'Unscheduled'
+          };
+          const response = await fetch(endpoint, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+          if (response.ok && onUpdate) {
+            const updated = await response.json();
+            onUpdate(updated.workOrder);
+          }
+        }
+      } else if (field === 'date' || field === 'timeslot') {
+        // Update via assign endpoint
+        endpoint = `${API_BASE}/work-orders/${workOrder.id}/assign`;
+        body = {
+          tech_id: workOrder.assigned_tech_id,
+          scheduled_date: field === 'date' ? value : workOrder.scheduled_date,
+          scheduled_time_slot: field === 'timeslot' ? value : workOrder.scheduled_time_slot
+        };
+        const response = await fetch(endpoint, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (response.ok && onUpdate) {
+          const updated = await response.json();
+          onUpdate(updated.workOrder);
+        }
+      }
+
+      setEditingField(null);
+    } catch (error) {
+      console.error('Error updating assignment:', error);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -745,21 +844,64 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
                       textTransform: 'uppercase',
                       letterSpacing: '0.025em'
                     }}>
-                      Assigned To
+                      Assigned To <span style={{ color: '#9CA3AF', fontWeight: '400' }}>(double-click to edit)</span>
                     </label>
-                    <div style={{
-                      fontSize: '0.9375rem',
-                      fontWeight: '600',
-                      color: '#111827',
-                      padding: '0.75rem',
-                      backgroundColor: '#F9FAFB',
-                      borderRadius: '0.5rem',
-                      border: '1px solid #E5E7EB'
-                    }}>
-                      {workOrder.tech_first_name && workOrder.tech_last_name
-                        ? `${workOrder.tech_first_name} ${workOrder.tech_last_name}`
-                        : 'Unassigned'}
-                    </div>
+                    {editingField === 'tech' ? (
+                      <select
+                        autoFocus
+                        value={workOrder.assigned_tech_id || ''}
+                        onChange={(e) => {
+                          const value = e.target.value === '' ? null : parseInt(e.target.value);
+                          handleAssignmentUpdate('tech', value);
+                        }}
+                        onBlur={() => setEditingField(null)}
+                        style={{
+                          width: '100%',
+                          fontSize: '0.9375rem',
+                          fontWeight: '600',
+                          color: '#111827',
+                          padding: '0.75rem',
+                          backgroundColor: 'white',
+                          borderRadius: '0.5rem',
+                          border: '2px solid #3B82F6',
+                          outline: 'none'
+                        }}
+                      >
+                        <option value="">Unassigned</option>
+                        {technicians.map(tech => (
+                          <option key={tech.id} value={tech.id}>
+                            {tech.first_name} {tech.last_name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div
+                        onDoubleClick={() => setEditingField('tech')}
+                        style={{
+                          fontSize: '0.9375rem',
+                          fontWeight: '600',
+                          color: '#111827',
+                          padding: '0.75rem',
+                          backgroundColor: '#F9FAFB',
+                          borderRadius: '0.5rem',
+                          border: '1px solid #E5E7EB',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#F3F4F6';
+                          e.currentTarget.style.borderColor = '#D1D5DB';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = '#F9FAFB';
+                          e.currentTarget.style.borderColor = '#E5E7EB';
+                        }}
+                      >
+                        {workOrder.tech_first_name && workOrder.tech_last_name
+                          ? `${workOrder.tech_first_name} ${workOrder.tech_last_name}`
+                          : 'Unassigned'}
+                      </div>
+                    )}
                   </div>
 
                   {/* Scheduled Date */}
@@ -773,26 +915,60 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
                       textTransform: 'uppercase',
                       letterSpacing: '0.025em'
                     }}>
-                      Scheduled Date
+                      Scheduled Date <span style={{ color: '#9CA3AF', fontWeight: '400' }}>(double-click to edit)</span>
                     </label>
-                    <div style={{
-                      fontSize: '0.9375rem',
-                      fontWeight: '600',
-                      color: '#111827',
-                      padding: '0.75rem',
-                      backgroundColor: '#F9FAFB',
-                      borderRadius: '0.5rem',
-                      border: '1px solid #E5E7EB'
-                    }}>
-                      {workOrder.scheduled_date
-                        ? new Date(workOrder.scheduled_date).toLocaleDateString('en-US', {
-                            weekday: 'short',
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric'
-                          })
-                        : 'Not Scheduled'}
-                    </div>
+                    {editingField === 'date' ? (
+                      <input
+                        type="date"
+                        autoFocus
+                        value={workOrder.scheduled_date || ''}
+                        onChange={(e) => handleAssignmentUpdate('date', e.target.value)}
+                        onBlur={() => setEditingField(null)}
+                        style={{
+                          width: '100%',
+                          fontSize: '0.9375rem',
+                          fontWeight: '600',
+                          color: '#111827',
+                          padding: '0.75rem',
+                          backgroundColor: 'white',
+                          borderRadius: '0.5rem',
+                          border: '2px solid #3B82F6',
+                          outline: 'none'
+                        }}
+                      />
+                    ) : (
+                      <div
+                        onDoubleClick={() => setEditingField('date')}
+                        style={{
+                          fontSize: '0.9375rem',
+                          fontWeight: '600',
+                          color: '#111827',
+                          padding: '0.75rem',
+                          backgroundColor: '#F9FAFB',
+                          borderRadius: '0.5rem',
+                          border: '1px solid #E5E7EB',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#F3F4F6';
+                          e.currentTarget.style.borderColor = '#D1D5DB';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = '#F9FAFB';
+                          e.currentTarget.style.borderColor = '#E5E7EB';
+                        }}
+                      >
+                        {workOrder.scheduled_date
+                          ? new Date(workOrder.scheduled_date).toLocaleDateString('en-US', {
+                              weekday: 'short',
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric'
+                            })
+                          : 'Not Scheduled'}
+                      </div>
+                    )}
                   </div>
 
                   {/* Time Slot */}
@@ -806,19 +982,56 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
                       textTransform: 'uppercase',
                       letterSpacing: '0.025em'
                     }}>
-                      Time Slot
+                      Time Slot <span style={{ color: '#9CA3AF', fontWeight: '400' }}>(double-click to edit)</span>
                     </label>
-                    <div style={{
-                      fontSize: '0.9375rem',
-                      fontWeight: '600',
-                      color: '#111827',
-                      padding: '0.75rem',
-                      backgroundColor: '#F9FAFB',
-                      borderRadius: '0.5rem',
-                      border: '1px solid #E5E7EB'
-                    }}>
-                      {workOrder.scheduled_time_slot || 'Unscheduled'}
-                    </div>
+                    {editingField === 'timeslot' ? (
+                      <select
+                        autoFocus
+                        value={workOrder.scheduled_time_slot || 'Unscheduled'}
+                        onChange={(e) => handleAssignmentUpdate('timeslot', e.target.value)}
+                        onBlur={() => setEditingField(null)}
+                        style={{
+                          width: '100%',
+                          fontSize: '0.9375rem',
+                          fontWeight: '600',
+                          color: '#111827',
+                          padding: '0.75rem',
+                          backgroundColor: 'white',
+                          borderRadius: '0.5rem',
+                          border: '2px solid #3B82F6',
+                          outline: 'none'
+                        }}
+                      >
+                        {timeSlots.map(slot => (
+                          <option key={slot} value={slot}>{slot}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div
+                        onDoubleClick={() => setEditingField('timeslot')}
+                        style={{
+                          fontSize: '0.9375rem',
+                          fontWeight: '600',
+                          color: '#111827',
+                          padding: '0.75rem',
+                          backgroundColor: '#F9FAFB',
+                          borderRadius: '0.5rem',
+                          border: '1px solid #E5E7EB',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#F3F4F6';
+                          e.currentTarget.style.borderColor = '#D1D5DB';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = '#F9FAFB';
+                          e.currentTarget.style.borderColor = '#E5E7EB';
+                        }}
+                      >
+                        {workOrder.scheduled_time_slot || 'Unscheduled'}
+                      </div>
+                    )}
                   </div>
 
                   {/* Status */}
