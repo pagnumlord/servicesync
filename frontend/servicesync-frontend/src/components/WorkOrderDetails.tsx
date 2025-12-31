@@ -230,6 +230,7 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
   };
 
   const getFileIcon = (filename: string) => {
+    if (!filename) return '📎';
     const ext = filename.split('.').pop()?.toLowerCase();
     switch (ext) {
       case 'pdf': return '📄';
