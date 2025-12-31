@@ -1783,8 +1783,7 @@ app.put('/api/work-orders/:id/assign', async (req, res) => {
       SET assigned_tech_id = $2,
           status = 'Active',
           scheduled_date = $3,
-          scheduled_time_slot = $4,
-          last_status_change_at = CURRENT_TIMESTAMP
+          scheduled_time_slot = $4
       WHERE id = $1
       RETURNING *
     `, [workOrderId, tech_id, scheduled_date, scheduled_time_slot]);
@@ -1868,7 +1867,6 @@ app.put('/api/work-orders/:id/unassign', async (req, res) => {
           END,
           scheduled_date = NULL,
           scheduled_time_slot = NULL,
-          last_status_change_at = CURRENT_TIMESTAMP
       WHERE id = $1
       RETURNING *
     `, [workOrderId]);
@@ -2034,7 +2032,6 @@ app.put('/api/work-orders/:id/suspend', async (req, res) => {
           suspension_notes = $5,
           status_notes = $6,
           last_status_change_by = $7,
-          last_status_change_at = CURRENT_TIMESTAMP,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = $1
       RETURNING *
@@ -2114,7 +2111,6 @@ app.put('/api/work-orders/:id/suspend', async (req, res) => {
           suspension_reason = $2,
           expected_return_date = $3,
           notes = COALESCE(notes || E'\n' || $4, $4),
-          last_status_change_at = CURRENT_TIMESTAMP
       WHERE id = $1 AND status != 'Complete'
       RETURNING *
     `, [workOrderId, suspension_reason, expected_return_date, notes]);
@@ -2180,7 +2176,6 @@ app.put('/api/work-orders/:id/resume', async (req, res) => {
           suspended_at = NULL,
           next_visit_date = $3,
           resume_notes = $4,
-          last_status_change_at = CURRENT_TIMESTAMP
       WHERE id = $1 AND status = 'Suspended'
       RETURNING *
     `, [workOrderId, tech_id, resumeDateValue, resume_notes]);
@@ -2299,7 +2294,6 @@ app.put('/api/work-orders/:id/move', async (req, res) => {
             WHEN $5 = 'unassigned' THEN NULL 
             ELSE scheduled_time_slot 
           END,
-          last_status_change_at = CURRENT_TIMESTAMP
       WHERE id = $1
       RETURNING *
     `, [workOrderId, newStatus, completionQueue, notes || `Moved to ${destination}`, destination]);
