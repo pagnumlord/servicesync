@@ -1783,7 +1783,8 @@ app.put('/api/work-orders/:id/assign', async (req, res) => {
       SET assigned_tech_id = $2,
           status = 'Active',
           scheduled_date = $3,
-          scheduled_time_slot = $4
+          scheduled_time_slot = $4,
+          completion_queue = NULL
       WHERE id = $1
       RETURNING *
     `, [workOrderId, tech_id, scheduled_date, scheduled_time_slot]);
