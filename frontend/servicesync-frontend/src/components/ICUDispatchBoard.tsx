@@ -151,12 +151,9 @@ function ICUDispatchBoard({
   const [showQuickWorkOrderForm, setShowQuickWorkOrderForm] = useState(false);
   const [selectedWorkOrder, setSelectedWorkOrder] = useState<EnhancedWorkOrder | null>(null);
 
-  // TODO: Replace with real authentication
-  // When you implement login, get user role from the authenticated user:
-  // - If user.account_type === 'technician', set userRole = 'technician'
-  // - If user.account_type === 'office', set userRole = 'office'
-  // This will control tech-only features like Check In button
-  const userRole: 'office' | 'technician' = 'office'; // Currently disabled - enable after auth
+  // TODO: When authentication is implemented, replace showCheckInOut={false} with:
+  // showCheckInOut={currentUser.account_type === 'technician'}
+  // This will show Check In button only for technician accounts
 
   // Enhanced WebSocket connection
   const {
@@ -1211,7 +1208,7 @@ function ICUDispatchBoard({
                             onContextMenu={(e) => handleContextMenu(e, workOrder)}
                             onCheckIn={handleCheckIn}
                             onCheckOut={handleCheckOut}
-                            showCheckInOut={userRole === 'technician'}
+                            showCheckInOut={false} // TODO: Enable after authentication
                             isSelected={selectedWorkOrder?.id === workOrder.id}
                           />
                         </div>
@@ -1301,7 +1298,7 @@ function ICUDispatchBoard({
                             onContextMenu={(e) => handleContextMenu(e, workOrder)}
                             onCheckIn={handleCheckIn}
                             onCheckOut={handleCheckOut}
-                            showCheckInOut={userRole === 'technician'}
+                            showCheckInOut={false} // TODO: Enable after authentication
                             isSelected={selectedWorkOrder?.id === workOrder.id}
                           />
                         </div>
@@ -1390,7 +1387,7 @@ function ICUDispatchBoard({
                             onContextMenu={(e) => handleContextMenu(e, workOrder)}
                             onCheckIn={handleCheckIn}
                             onCheckOut={handleCheckOut}
-                            showCheckInOut={userRole === 'technician'}
+                            showCheckInOut={false} // TODO: Enable after authentication
                             isSelected={selectedWorkOrder?.id === workOrder.id}
                           />
                         </div>
