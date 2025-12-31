@@ -4833,8 +4833,14 @@ app.get('/api/customers/:id/equipment', async (req, res) => {
 
 // Configure Multer for file uploads
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
+  destination: async (req, file, cb) => {
+    const uploadDir = path.join(__dirname, 'uploads');
+    try {
+      await fs.mkdir(uploadDir, { recursive: true });
+      cb(null, uploadDir);
+    } catch (error) {
+      cb(error, uploadDir);
+    }
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
