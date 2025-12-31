@@ -50,7 +50,7 @@ const QuickNotesPreview: React.FC<QuickNotesPreviewProps> = ({
       {/* Header Bar */}
       <div style={{
         backgroundColor: '#F3F4F6',
-        padding: '0.5rem 1rem',
+        padding: '0.375rem 1rem',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -60,7 +60,7 @@ const QuickNotesPreview: React.FC<QuickNotesPreviewProps> = ({
           {/* WO Number */}
           <span style={{
             fontWeight: '600',
-            fontSize: '0.875rem',
+            fontSize: '1rem',
             color: '#1F2937'
           }}>
             {workOrder.wo_number}
@@ -68,7 +68,7 @@ const QuickNotesPreview: React.FC<QuickNotesPreviewProps> = ({
 
           {/* Customer Name */}
           <span style={{
-            fontSize: '0.875rem',
+            fontSize: '1rem',
             color: '#4B5563'
           }}>
             {workOrder.customer_name}
@@ -80,7 +80,7 @@ const QuickNotesPreview: React.FC<QuickNotesPreviewProps> = ({
             color: 'white',
             padding: '0.125rem 0.5rem',
             borderRadius: '0.25rem',
-            fontSize: '0.75rem',
+            fontSize: '0.8125rem',
             fontWeight: '500'
           }}>
             {workOrder.priority}
@@ -92,7 +92,7 @@ const QuickNotesPreview: React.FC<QuickNotesPreviewProps> = ({
             color: 'white',
             padding: '0.125rem 0.5rem',
             borderRadius: '0.25rem',
-            fontSize: '0.75rem',
+            fontSize: '0.8125rem',
             fontWeight: '500'
           }}>
             {workOrder.status}
@@ -105,7 +105,7 @@ const QuickNotesPreview: React.FC<QuickNotesPreviewProps> = ({
               color: 'white',
               padding: '0.125rem 0.5rem',
               borderRadius: '0.25rem',
-              fontSize: '0.75rem',
+              fontSize: '0.8125rem',
               fontWeight: '500'
             }}>
               {workOrder.call_rate}
@@ -123,7 +123,7 @@ const QuickNotesPreview: React.FC<QuickNotesPreviewProps> = ({
               border: 'none',
               padding: '0.375rem 0.75rem',
               borderRadius: '0.25rem',
-              fontSize: '0.75rem',
+              fontSize: '0.8125rem',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -159,13 +159,13 @@ const QuickNotesPreview: React.FC<QuickNotesPreviewProps> = ({
         display: 'grid',
         gridTemplateColumns: 'repeat(4, 1fr)',
         gap: '1rem',
-        maxHeight: '200px',
+        maxHeight: '300px',
         overflow: 'auto'
       }}>
         {/* Column 1 - Problem & Equipment */}
         <div>
           <h4 style={{
-            fontSize: '0.75rem',
+            fontSize: '0.8125rem',
             fontWeight: '600',
             color: '#6B7280',
             marginBottom: '0.5rem',
@@ -174,10 +174,10 @@ const QuickNotesPreview: React.FC<QuickNotesPreviewProps> = ({
             Problem Description
           </h4>
           <p style={{
-            fontSize: '0.875rem',
+            fontSize: '1rem',
             color: '#1F2937',
             marginBottom: '1rem',
-            lineHeight: '1.4'
+            lineHeight: '1.5'
           }}>
             {workOrder.problem_description || 'No description provided'}
           </p>
@@ -185,7 +185,7 @@ const QuickNotesPreview: React.FC<QuickNotesPreviewProps> = ({
           {workOrder.equipment_type && (
             <>
               <h4 style={{
-                fontSize: '0.75rem',
+                fontSize: '0.8125rem',
                 fontWeight: '600',
                 color: '#6B7280',
                 marginBottom: '0.25rem',
@@ -194,13 +194,13 @@ const QuickNotesPreview: React.FC<QuickNotesPreviewProps> = ({
                 Equipment
               </h4>
               <div style={{
-                fontSize: '0.875rem',
+                fontSize: '1rem',
                 color: '#1F2937',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.25rem'
               }}>
-                <Wrench size={14} />
+                <Wrench size={16} />
                 {workOrder.equipment_type}
                 {workOrder.equipment_number && ` #${workOrder.equipment_number}`}
               </div>
@@ -211,7 +211,7 @@ const QuickNotesPreview: React.FC<QuickNotesPreviewProps> = ({
         {/* Column 2 - Location & Contact */}
         <div>
   <h4 style={{
-    fontSize: '0.75rem',
+    fontSize: '0.8125rem',
     fontWeight: '600',
     color: '#6B7280',
     marginBottom: '0.5rem',
@@ -220,12 +220,12 @@ const QuickNotesPreview: React.FC<QuickNotesPreviewProps> = ({
     Service Location
   </h4>
   <div style={{
-    fontSize: '0.875rem',
+    fontSize: '1rem',
     color: '#1F2937',
     marginBottom: '0.5rem'
   }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-      <MapPin size={14} />
+      <MapPin size={16} />
       {workOrder.service_city}
       {workOrder.customer_zone && ` - Zone ${workOrder.customer_zone}`}
     </div>
@@ -235,7 +235,7 @@ const QuickNotesPreview: React.FC<QuickNotesPreviewProps> = ({
         {/* Column 3 - Schedule Info */}
         <div>
           <h4 style={{
-            fontSize: '0.75rem',
+            fontSize: '0.8125rem',
             fontWeight: '600',
             color: '#6B7280',
             marginBottom: '0.5rem',
@@ -243,10 +243,10 @@ const QuickNotesPreview: React.FC<QuickNotesPreviewProps> = ({
           }}>
             Schedule
           </h4>
-          
+
           {workOrder.scheduled_date && (
             <div style={{
-              fontSize: '0.875rem',
+              fontSize: '1rem',
               color: '#1F2937',
               marginBottom: '0.5rem'
             }}>
@@ -256,20 +256,20 @@ const QuickNotesPreview: React.FC<QuickNotesPreviewProps> = ({
 
           {workOrder.scheduled_time_slot && (
             <div style={{
-              fontSize: '0.875rem',
+              fontSize: '1rem',
               color: '#1F2937',
               display: 'flex',
               alignItems: 'center',
               gap: '0.25rem'
             }}>
-              <Clock size={14} />
+              <Clock size={16} />
               {workOrder.scheduled_time_slot}
             </div>
           )}
 
           {workOrder.tech_first_name && (
             <div style={{
-              fontSize: '0.875rem',
+              fontSize: '1rem',
               color: '#1F2937',
               marginTop: '0.5rem'
             }}>
@@ -281,7 +281,7 @@ const QuickNotesPreview: React.FC<QuickNotesPreviewProps> = ({
         {/* Column 4 - Recent Notes */}
         <div>
           <h4 style={{
-            fontSize: '0.75rem',
+            fontSize: '0.8125rem',
             fontWeight: '600',
             color: '#6B7280',
             marginBottom: '0.5rem',
@@ -290,9 +290,9 @@ const QuickNotesPreview: React.FC<QuickNotesPreviewProps> = ({
             Recent Notes
           </h4>
           <div style={{
-            fontSize: '0.813rem',
+            fontSize: '0.9375rem',
             color: '#4B5563',
-            lineHeight: '1.4',
+            lineHeight: '1.5',
             fontStyle: 'italic'
           }}>
             {workOrder.status_notes || 'No recent notes'}
@@ -300,7 +300,7 @@ const QuickNotesPreview: React.FC<QuickNotesPreviewProps> = ({
 
           {workOrder.customer_po && (
             <div style={{
-              fontSize: '0.813rem',
+              fontSize: '0.9375rem',
               color: '#1F2937',
               marginTop: '0.5rem',
               padding: '0.25rem 0.5rem',
@@ -317,11 +317,11 @@ const QuickNotesPreview: React.FC<QuickNotesPreviewProps> = ({
       {/* Quick Actions Bar */}
       <div style={{
         backgroundColor: '#F9FAFB',
-        padding: '0.5rem 1rem',
+        padding: '0.375rem 1rem',
         display: 'flex',
         gap: '0.5rem',
         borderTop: '1px solid #E5E7EB',
-        fontSize: '0.75rem',
+        fontSize: '0.8125rem',
         color: '#6B7280'
       }}>
         <span>Press <kbd style={{ padding: '2px 4px', backgroundColor: '#E5E7EB', borderRadius: '2px' }}>Enter</kbd> to open full details</span>
