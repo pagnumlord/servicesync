@@ -1866,7 +1866,8 @@ app.put('/api/work-orders/:id/unassign', async (req, res) => {
             ELSE status
           END,
           scheduled_date = NULL,
-          scheduled_time_slot = NULL
+          scheduled_time_slot = NULL,
+          completion_queue = NULL
       WHERE id = $1
       RETURNING *
     `, [workOrderId]);
