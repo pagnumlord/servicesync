@@ -1356,7 +1356,7 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
                       {isImage(attachment.file_name) ? (
                         <div>
                           <img
-                            src={`http://localhost:5000${attachment.file_path}`}
+                            src={`http://localhost:5000${attachment.file_url}`}
                             alt={attachment.file_name}
                             style={{
                               width: '100%',
@@ -1422,7 +1422,7 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
                       {/* Actions */}
                       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
                         <a
-                          href={`http://localhost:5000${attachment.file_path}`}
+                          href={`http://localhost:5000${attachment.file_url}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{
