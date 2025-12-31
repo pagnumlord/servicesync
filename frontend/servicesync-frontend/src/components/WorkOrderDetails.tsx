@@ -49,7 +49,7 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
   onUpdate,
   onNavigateToCustomer
 }) => {
-  const [activeTab, setActiveTab] = useState<'details' | 'timeline' | 'parts' | 'labor' | 'attachments'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'assignments' | 'timeline' | 'parts' | 'labor' | 'attachments'>('details');
   const [isEditing, setIsEditing] = useState(false);
   const [editedWorkOrder, setEditedWorkOrder] = useState<WorkOrder>(workOrder);
 
@@ -105,6 +105,7 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
 
   const tabs = [
     { id: 'details' as const, label: 'Details', icon: Info },
+    { id: 'assignments' as const, label: 'Assignments', icon: Calendar },
     { id: 'timeline' as const, label: 'Timeline', icon: Activity },
     { id: 'parts' as const, label: 'Parts & Materials', icon: Package },
     { id: 'labor' as const, label: 'Labor & Time', icon: Clock },
@@ -695,6 +696,194 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
                     </p>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'assignments' && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.5rem',
+              maxWidth: '900px',
+              margin: '0 auto'
+            }}>
+              {/* Current Assignment Card */}
+              <div style={{
+                backgroundColor: 'white',
+                border: '2px solid #E5E7EB',
+                borderRadius: '0.75rem',
+                padding: '1.5rem',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+              }}>
+                <h3 style={{
+                  margin: '0 0 1rem 0',
+                  fontSize: '1.125rem',
+                  fontWeight: '700',
+                  color: '#111827',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}>
+                  <Calendar size={20} />
+                  Current Assignment
+                </h3>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '1rem'
+                }}>
+                  {/* Assigned Technician */}
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '0.75rem',
+                      fontWeight: '600',
+                      color: '#6B7280',
+                      marginBottom: '0.5rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.025em'
+                    }}>
+                      Assigned To
+                    </label>
+                    <div style={{
+                      fontSize: '0.9375rem',
+                      fontWeight: '600',
+                      color: '#111827',
+                      padding: '0.75rem',
+                      backgroundColor: '#F9FAFB',
+                      borderRadius: '0.5rem',
+                      border: '1px solid #E5E7EB'
+                    }}>
+                      {workOrder.tech_first_name && workOrder.tech_last_name
+                        ? `${workOrder.tech_first_name} ${workOrder.tech_last_name}`
+                        : 'Unassigned'}
+                    </div>
+                  </div>
+
+                  {/* Scheduled Date */}
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '0.75rem',
+                      fontWeight: '600',
+                      color: '#6B7280',
+                      marginBottom: '0.5rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.025em'
+                    }}>
+                      Scheduled Date
+                    </label>
+                    <div style={{
+                      fontSize: '0.9375rem',
+                      fontWeight: '600',
+                      color: '#111827',
+                      padding: '0.75rem',
+                      backgroundColor: '#F9FAFB',
+                      borderRadius: '0.5rem',
+                      border: '1px solid #E5E7EB'
+                    }}>
+                      {workOrder.scheduled_date
+                        ? new Date(workOrder.scheduled_date).toLocaleDateString('en-US', {
+                            weekday: 'short',
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })
+                        : 'Not Scheduled'}
+                    </div>
+                  </div>
+
+                  {/* Time Slot */}
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '0.75rem',
+                      fontWeight: '600',
+                      color: '#6B7280',
+                      marginBottom: '0.5rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.025em'
+                    }}>
+                      Time Slot
+                    </label>
+                    <div style={{
+                      fontSize: '0.9375rem',
+                      fontWeight: '600',
+                      color: '#111827',
+                      padding: '0.75rem',
+                      backgroundColor: '#F9FAFB',
+                      borderRadius: '0.5rem',
+                      border: '1px solid #E5E7EB'
+                    }}>
+                      {workOrder.scheduled_time_slot || 'Unscheduled'}
+                    </div>
+                  </div>
+
+                  {/* Status */}
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '0.75rem',
+                      fontWeight: '600',
+                      color: '#6B7280',
+                      marginBottom: '0.5rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.025em'
+                    }}>
+                      Status
+                    </label>
+                    <div style={{
+                      display: 'inline-block',
+                      padding: '0.5rem 1rem',
+                      borderRadius: '9999px',
+                      backgroundColor: `${getStatusColor(workOrder.status || 'open')}20`,
+                      border: `2px solid ${getStatusColor(workOrder.status || 'open')}`,
+                      fontSize: '0.875rem',
+                      fontWeight: '600',
+                      color: getStatusColor(workOrder.status || 'open')
+                    }}>
+                      {workOrder.status || 'Open'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Assignment History Placeholder */}
+              <div style={{
+                backgroundColor: 'white',
+                border: '2px solid #E5E7EB',
+                borderRadius: '0.75rem',
+                padding: '1.5rem',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+              }}>
+                <h3 style={{
+                  margin: '0 0 1rem 0',
+                  fontSize: '1.125rem',
+                  fontWeight: '700',
+                  color: '#111827',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}>
+                  <Activity size={20} />
+                  Assignment History
+                </h3>
+
+                <div style={{
+                  textAlign: 'center',
+                  padding: '2rem',
+                  color: '#9CA3AF'
+                }}>
+                  <Activity size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
+                  <p style={{ margin: 0, fontSize: '0.9375rem', fontWeight: '500' }}>
+                    Assignment history coming soon
+                  </p>
+                  <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.8125rem' }}>
+                    Track assignment changes, reassignments, and completion dates
+                  </p>
+                </div>
               </div>
             </div>
           )}
