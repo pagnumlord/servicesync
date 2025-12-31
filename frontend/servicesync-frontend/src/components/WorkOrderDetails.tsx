@@ -237,13 +237,20 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
       case 'jpg':
       case 'jpeg':
       case 'png':
-      case 'gif': return '🖼️';
+      case 'gif':
+      case 'webp': return null; // Return null for images - we'll show preview instead
       case 'doc':
       case 'docx': return '📝';
       case 'xls':
       case 'xlsx': return '📊';
       default: return '📎';
     }
+  };
+
+  const isImage = (filename: string) => {
+    if (!filename) return false;
+    const ext = filename.split('.').pop()?.toLowerCase();
+    return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '');
   };
 
   const formatFileSize = (bytes: number) => {
@@ -1345,10 +1352,20 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
                         e.currentTarget.style.boxShadow = 'none';
                       }}
                     >
-                      {/* File Icon and Name */}
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-                        <span style={{ fontSize: '2rem' }}>{getFileIcon(attachment.file_name)}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Image Preview or File Icon */}
+                      {isImage(attachment.file_name) ? (
+                        <div>
+                          <img
+                            src={`http://localhost:5000${attachment.file_path}`}
+                            alt={attachment.file_name}
+                            style={{
+                              width: '100%',
+                              height: '150px',
+                              objectFit: 'cover',
+                              borderRadius: '0.5rem',
+                              marginBottom: '0.75rem'
+                            }}
+                          />
                           <div style={{
                             fontSize: '0.875rem',
                             fontWeight: '600',
@@ -1363,7 +1380,26 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
                             {attachment.file_size && formatFileSize(attachment.file_size)}
                           </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                          <span style={{ fontSize: '2rem' }}>{getFileIcon(attachment.file_name)}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{
+                              fontSize: '0.875rem',
+                              fontWeight: '600',
+                              color: '#111827',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {attachment.file_name}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: '0.25rem' }}>
+                              {attachment.file_size && formatFileSize(attachment.file_size)}
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Upload Info */}
                       {attachment.uploaded_at && (
