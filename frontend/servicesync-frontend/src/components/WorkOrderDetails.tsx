@@ -213,7 +213,7 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
   };
 
   const handleDeleteAttachment = async (attachmentId: number) => {
-    if (!confirm('Are you sure you want to delete this attachment?')) return;
+    if (!window.confirm('Are you sure you want to delete this attachment?')) return;
 
     try {
       const response = await fetch(
