@@ -1896,6 +1896,7 @@ function CompactTimeSlot({
           transition: 'all 0.2s ease',
           display: 'flex',
           flexDirection: 'column',
+          justifyContent: isFirstAM ? 'center' : 'flex-start', // Center cards in First AM
           flex: flex ? 1 : 0,
           height: cardHeight && !flex ? `calc(${cardHeight} - 2rem)` : undefined,
           overflow: preventScroll ? 'hidden' : 'auto', // Prevent scrolling for First AM
