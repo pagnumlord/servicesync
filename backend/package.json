@@ -9,7 +9,8 @@
     "test": "node test-db.js",
     "schema": "node run-schema.js",
     "setup:attachments": "node run-schema.js attachments-schema.sql",
-    "setup:queues": "node scripts/populate-queues.js"
+    "setup:queues": "node scripts/populate-queues.js",
+    "fix:trigger": "node scripts/disable-wo-trigger.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

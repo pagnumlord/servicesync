@@ -4287,10 +4287,10 @@ app.post('/api/work-orders/:id/check-in', async (req, res) => {
       return res.status(404).json({ error: 'Work order not found' });
     }
 
-    // Update work order status to "In Progress"
+    // Update work order status to "Active" (technician is working on it)
     const updateResult = await client.query(`
       UPDATE work_orders
-      SET status = 'In Progress',
+      SET status = 'Active',
           assigned_tech_id = COALESCE($2, assigned_tech_id),
           updated_at = NOW()
       WHERE id = $1
