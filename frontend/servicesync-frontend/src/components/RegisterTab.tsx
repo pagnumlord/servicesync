@@ -612,7 +612,7 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
                       {item.description}
                       {item.labor_hours && (
                         <div style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: '0.25rem' }}>
-                          {item.labor_hours}h @ ${item.labor_rate}/hr
+                          {Number(item.labor_hours).toFixed(2)}h @ ${Number(item.labor_rate || 0).toFixed(2)}/hr
                         </div>
                       )}
                     </td>
@@ -623,13 +623,13 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
                       {item.quantity} {item.unit_of_measure}
                     </td>
                     <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.875rem', color: '#6B7280' }}>
-                      ${item.unit_cost.toFixed(2)}
+                      ${Number(item.unit_cost || 0).toFixed(2)}
                     </td>
                     <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.875rem', color: '#374151', fontWeight: '500' }}>
-                      ${item.unit_price.toFixed(2)}
+                      ${Number(item.unit_price || 0).toFixed(2)}
                     </td>
                     <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.875rem', color: '#111827', fontWeight: '600' }}>
-                      ${item.line_total.toFixed(2)}
+                      ${Number(item.line_total || 0).toFixed(2)}
                     </td>
                     <td style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.75rem' }}>
                       <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center', flexWrap: 'wrap' }}>
