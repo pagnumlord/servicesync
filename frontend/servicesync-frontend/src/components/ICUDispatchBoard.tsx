@@ -127,8 +127,9 @@ function ICUDispatchBoard({
 }: ICUDispatchBoardProps) {
   const handleWorkOrderSelect = onWorkOrderSelect || onOpenWorkOrder;
   const [viewMode, setViewMode] = useState<'board' | 'calendar'>('board');
-  const [infoDisplayMode, setInfoDisplayMode] = useState<'equipment' | 'notes'>('equipment');
+  // Combined display format: format + content type (equipment/notes)
   const [displayFormat, setDisplayFormat] = useState<'wo_number' | 'location' | 'call_type'>('wo_number');
+  const [infoDisplayMode, setInfoDisplayMode] = useState<'equipment' | 'notes'>('equipment');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -282,13 +283,29 @@ function ICUDispatchBoard({
     fetchZones();
   }, []);
 
-  // Cycle through display formats
+  // Cycle through display formats AND info mode (6 combinations)
   const cycleDisplayFormat = () => {
-    setDisplayFormat(prev => {
-      if (prev === 'wo_number') return 'location';
-      if (prev === 'location') return 'call_type';
-      return 'wo_number';
-    });
+    // Current state
+    const currentFormat = displayFormat;
+    const currentMode = infoDisplayMode;
+
+    // Cycle through: WO#+Equip → WO#+Notes → Location+Equip → Location+Notes → Type+Equip → Type+Notes → back to start
+    if (currentFormat === 'wo_number' && currentMode === 'equipment') {
+      setInfoDisplayMode('notes');
+    } else if (currentFormat === 'wo_number' && currentMode === 'notes') {
+      setDisplayFormat('location');
+      setInfoDisplayMode('equipment');
+    } else if (currentFormat === 'location' && currentMode === 'equipment') {
+      setInfoDisplayMode('notes');
+    } else if (currentFormat === 'location' && currentMode === 'notes') {
+      setDisplayFormat('call_type');
+      setInfoDisplayMode('equipment');
+    } else if (currentFormat === 'call_type' && currentMode === 'equipment') {
+      setInfoDisplayMode('notes');
+    } else { // call_type + notes -> back to start
+      setDisplayFormat('wo_number');
+      setInfoDisplayMode('equipment');
+    }
   };
 
   const enhanceWorkOrderWithVisibility = (workOrder: any): EnhancedWorkOrder => {
@@ -832,10 +849,10 @@ function ICUDispatchBoard({
         </div>
 
         <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
-          {/* Switch Format Button */}
+          {/* Combined Info Display Button - cycles through format + content */}
           <button
             onClick={cycleDisplayFormat}
-            title={`Current: ${displayFormat === 'wo_number' ? 'WO Number' : displayFormat === 'location' ? 'Location/County' : 'Call Type'}`}
+            title={`Showing: ${displayFormat === 'wo_number' ? 'WO Number' : displayFormat === 'location' ? 'Location/County' : 'Call Type'} + ${infoDisplayMode === 'equipment' ? 'Equipment' : 'Notes'}`}
             style={{
               backgroundColor: '#8B5CF6',
               color: 'white',
@@ -855,7 +872,7 @@ function ICUDispatchBoard({
             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#7C3AED'}
             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#8B5CF6'}
           >
-            🔄 {displayFormat === 'wo_number' ? 'WO#' : displayFormat === 'location' ? 'County' : 'Type'}
+            🔄 {displayFormat === 'wo_number' ? 'WO#' : displayFormat === 'location' ? 'County' : 'Type'} {infoDisplayMode === 'equipment' ? '🔧' : '💬'}
           </button>
 
           {/* Action Buttons - Only visible when a work order is selected */}
@@ -982,51 +999,6 @@ function ICUDispatchBoard({
               </div>
             </div>
           )}
-
-          {/* Info display toggle - more compact */}
-          <div style={{
-            display: 'flex',
-            gap: '0.25rem',
-            marginRight: '0.75rem',
-            backgroundColor: 'rgba(255, 255, 255, 0.1)',
-            borderRadius: '0.5rem',
-            padding: '0.25rem'
-          }}>
-            <button
-              onClick={() => setInfoDisplayMode('equipment')}
-              style={{
-                backgroundColor: infoDisplayMode === 'equipment' ? '#10B981' : 'transparent',
-                color: 'white',
-                border: 'none',
-                padding: '0.5rem 0.875rem',
-                borderRadius: '0.375rem',
-                cursor: 'pointer',
-                fontSize: '0.75rem',
-                fontWeight: '600',
-                transition: 'all 0.2s',
-                boxShadow: infoDisplayMode === 'equipment' ? '0 2px 4px rgba(16, 185, 129, 0.3)' : 'none'
-              }}
-            >
-              🔧 Equipment
-            </button>
-            <button
-              onClick={() => setInfoDisplayMode('notes')}
-              style={{
-                backgroundColor: infoDisplayMode === 'notes' ? '#10B981' : 'transparent',
-                color: 'white',
-                border: 'none',
-                padding: '0.5rem 0.875rem',
-                borderRadius: '0.375rem',
-                cursor: 'pointer',
-                fontSize: '0.75rem',
-                fontWeight: '600',
-                transition: 'all 0.2s',
-                boxShadow: infoDisplayMode === 'notes' ? '0 2px 4px rgba(16, 185, 129, 0.3)' : 'none'
-              }}
-            >
-              💬 Notes
-            </button>
-          </div>
 
           {/* View mode toggle - more compact */}
           <div style={{
@@ -1796,9 +1768,9 @@ function TechnicianColumn({
         onCheckOut={onCheckOut}
       />
 
-      {/* Unscheduled Slot - FLEXIBLE HEIGHT */}
+      {/* Today's Jobs Slot - FLEXIBLE HEIGHT */}
       <CompactTimeSlot
-        title="Unscheduled Work Orders"
+        title="Today's Jobs"
         workOrders={unscheduledWorkOrders}
         targetId={unscheduledTargetId}
         dragOverTarget={dragOverTarget}
