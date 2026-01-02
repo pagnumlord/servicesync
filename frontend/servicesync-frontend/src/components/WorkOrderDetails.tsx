@@ -51,7 +51,7 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
   onUpdate,
   onNavigateToCustomer
 }) => {
-  const [activeTab, setActiveTab] = useState<'details' | 'assignments' | 'timeline' | 'parts' | 'labor' | 'attachments'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'register' | 'assignments' | 'timeline' | 'parts' | 'labor' | 'attachments'>('details');
   const [isEditing, setIsEditing] = useState(false);
   const [editedWorkOrder, setEditedWorkOrder] = useState<WorkOrder>(workOrder);
 
