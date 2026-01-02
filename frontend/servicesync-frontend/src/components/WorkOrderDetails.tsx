@@ -400,8 +400,9 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
 
         if (response.ok) {
           const updated = await response.json();
-          setEditedWorkOrder({ ...editedWorkOrder, ...updated.work_order });
-          onUpdate?.();
+          const newWorkOrder = { ...editedWorkOrder, ...updated.work_order };
+          setEditedWorkOrder(newWorkOrder);
+          onUpdate?.(newWorkOrder);
         }
       } else {
         // Convert to multi-day - set today as start and tomorrow as end by default
@@ -421,8 +422,9 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
 
         if (response.ok) {
           const updated = await response.json();
-          setEditedWorkOrder({ ...editedWorkOrder, ...updated.work_order });
-          onUpdate?.();
+          const newWorkOrder = { ...editedWorkOrder, ...updated.work_order };
+          setEditedWorkOrder(newWorkOrder);
+          onUpdate?.(newWorkOrder);
         }
       }
     } catch (error) {

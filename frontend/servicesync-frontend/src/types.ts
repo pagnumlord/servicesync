@@ -49,6 +49,10 @@ export interface WorkOrder {
   duration_days?: number;
   is_multi_day?: boolean;
   multi_day?: boolean;
+  project_start_date?: string;
+  project_end_date?: string;
+  estimated_hours?: number;
+  project_notes?: string;
   employee_time_off?: boolean;
   project_type?: 'installation' | 'maintenance' | 'time_off' | 'training';
   // Equipment details when joined
