@@ -389,6 +389,78 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
     console.log('Resume work order:', workOrder.id);
   };
 
+  const handleToggleMultiDay = async () => {
+    try {
+      if (workOrder.is_multi_day) {
+        // Convert to single-day
+        const response = await fetch(`${API_BASE}/work-orders/${workOrder.id}/make-single-day`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (response.ok) {
+          const updated = await response.json();
+          setEditedWorkOrder({ ...editedWorkOrder, ...updated.work_order });
+          onUpdate?.();
+        }
+      } else {
+        // Convert to multi-day - set today as start and tomorrow as end by default
+        const today = new Date().toISOString().split('T')[0];
+        const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+
+        const response = await fetch(`${API_BASE}/work-orders/${workOrder.id}/make-multi-day`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project_start_date: today,
+            project_end_date: tomorrow,
+            estimated_hours: null,
+            project_notes: ''
+          })
+        });
+
+        if (response.ok) {
+          const updated = await response.json();
+          setEditedWorkOrder({ ...editedWorkOrder, ...updated.work_order });
+          onUpdate?.();
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling multi-day:', error);
+      alert('Failed to update multi-day status');
+    }
+  };
+
+  const handleMultiDayUpdate = async (field: string, value: any) => {
+    const updates: any = {
+      project_start_date: workOrder.project_start_date,
+      project_end_date: workOrder.project_end_date,
+      estimated_hours: workOrder.estimated_hours,
+      project_notes: workOrder.project_notes
+    };
+
+    if (field === 'start_date') updates.project_start_date = value;
+    else if (field === 'end_date') updates.project_end_date = value;
+    else if (field === 'estimated_hours') updates.estimated_hours = value ? parseFloat(value) : null;
+    else if (field === 'project_notes') updates.project_notes = value;
+
+    try {
+      const response = await fetch(`${API_BASE}/work-orders/${workOrder.id}/make-multi-day`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+
+      if (response.ok) {
+        const updated = await response.json();
+        setEditedWorkOrder({ ...editedWorkOrder, ...updated.work_order });
+        onUpdate?.();
+      }
+    } catch (error) {
+      console.error('Error updating multi-day project:', error);
+    }
+  };
+
   const tabs = [
     { id: 'details' as const, label: 'Details', icon: Info },
     { id: 'register' as const, label: 'Register', icon: Receipt },
@@ -1381,6 +1453,208 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Multi-Day Scheduling Card */}
+              <div style={{
+                backgroundColor: 'white',
+                border: '2px solid #E5E7EB',
+                borderRadius: '0.75rem',
+                padding: '1.5rem',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '1rem'
+                }}>
+                  <h3 style={{
+                    margin: 0,
+                    fontSize: '1.125rem',
+                    fontWeight: '700',
+                    color: '#111827',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}>
+                    <Calendar size={20} />
+                    Multi-Day Project
+                  </h3>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}>
+                    <span style={{
+                      fontSize: '0.75rem',
+                      fontWeight: '600',
+                      color: '#6B7280',
+                      textTransform: 'uppercase'
+                    }}>
+                      {workOrder.is_multi_day ? 'Multi-Day' : 'Single Day'}
+                    </span>
+                    <div style={{
+                      width: '40px',
+                      height: '22px',
+                      backgroundColor: workOrder.is_multi_day ? '#10B981' : '#D1D5DB',
+                      borderRadius: '11px',
+                      position: 'relative',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onClick={handleToggleMultiDay}
+                    >
+                      <div style={{
+                        position: 'absolute',
+                        top: '2px',
+                        left: workOrder.is_multi_day ? '20px' : '2px',
+                        width: '18px',
+                        height: '18px',
+                        backgroundColor: 'white',
+                        borderRadius: '50%',
+                        transition: 'left 0.2s',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                      }} />
+                    </div>
+                  </div>
+                </div>
+
+                {workOrder.is_multi_day ? (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '1rem'
+                  }}>
+                    <div>
+                      <label style={{
+                        display: 'block',
+                        fontSize: '0.75rem',
+                        fontWeight: '600',
+                        color: '#6B7280',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase'
+                      }}>
+                        Start Date
+                      </label>
+                      <input
+                        type="date"
+                        value={workOrder.project_start_date || ''}
+                        onChange={(e) => handleMultiDayUpdate('start_date', e.target.value)}
+                        style={{
+                          width: '100%',
+                          fontSize: '0.9375rem',
+                          fontWeight: '600',
+                          color: '#111827',
+                          padding: '0.75rem',
+                          backgroundColor: '#F9FAFB',
+                          borderRadius: '0.5rem',
+                          border: '1px solid #E5E7EB',
+                          outline: 'none'
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{
+                        display: 'block',
+                        fontSize: '0.75rem',
+                        fontWeight: '600',
+                        color: '#6B7280',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase'
+                      }}>
+                        End Date
+                      </label>
+                      <input
+                        type="date"
+                        value={workOrder.project_end_date || ''}
+                        onChange={(e) => handleMultiDayUpdate('end_date', e.target.value)}
+                        style={{
+                          width: '100%',
+                          fontSize: '0.9375rem',
+                          fontWeight: '600',
+                          color: '#111827',
+                          padding: '0.75rem',
+                          backgroundColor: '#F9FAFB',
+                          borderRadius: '0.5rem',
+                          border: '1px solid #E5E7EB',
+                          outline: 'none'
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{
+                        display: 'block',
+                        fontSize: '0.75rem',
+                        fontWeight: '600',
+                        color: '#6B7280',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase'
+                      }}>
+                        Estimated Hours
+                      </label>
+                      <input
+                        type="number"
+                        value={workOrder.estimated_hours || ''}
+                        onChange={(e) => handleMultiDayUpdate('estimated_hours', e.target.value)}
+                        placeholder="0"
+                        style={{
+                          width: '100%',
+                          fontSize: '0.9375rem',
+                          fontWeight: '600',
+                          color: '#111827',
+                          padding: '0.75rem',
+                          backgroundColor: '#F9FAFB',
+                          borderRadius: '0.5rem',
+                          border: '1px solid #E5E7EB',
+                          outline: 'none'
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={{
+                        display: 'block',
+                        fontSize: '0.75rem',
+                        fontWeight: '600',
+                        color: '#6B7280',
+                        marginBottom: '0.5rem',
+                        textTransform: 'uppercase'
+                      }}>
+                        Project Notes
+                      </label>
+                      <textarea
+                        value={workOrder.project_notes || ''}
+                        onChange={(e) => handleMultiDayUpdate('project_notes', e.target.value)}
+                        placeholder="Add notes about this multi-day project..."
+                        rows={3}
+                        style={{
+                          width: '100%',
+                          fontSize: '0.9375rem',
+                          color: '#111827',
+                          padding: '0.75rem',
+                          backgroundColor: '#F9FAFB',
+                          borderRadius: '0.5rem',
+                          border: '1px solid #E5E7EB',
+                          outline: 'none',
+                          resize: 'vertical',
+                          fontFamily: 'inherit'
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <p style={{
+                    margin: 0,
+                    fontSize: '0.875rem',
+                    color: '#6B7280',
+                    fontStyle: 'italic'
+                  }}>
+                    This is a single-day work order. Toggle on to convert to a multi-day project.
+                  </p>
+                )}
               </div>
 
               {/* Assignment History Placeholder */}
