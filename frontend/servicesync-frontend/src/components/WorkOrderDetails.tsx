@@ -64,6 +64,11 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
+  // Work Queues state
+  const [allQueues, setAllQueues] = useState<any[]>([]);
+  const [queueAssignments, setQueueAssignments] = useState<Set<number>>(new Set());
+  const [loadingQueues, setLoadingQueues] = useState(false);
+
   const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
   const timeSlots = [
@@ -92,6 +97,14 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
       loadAttachments();
     }
   }, [activeTab]);
+
+  // Load queues and queue assignments when component mounts
+  useEffect(() => {
+    if (isOpen) {
+      loadQueues();
+      loadQueueAssignments();
+    }
+  }, [isOpen, workOrder.id]);
 
   const loadTechnicians = async () => {
     setLoadingTechnicians(true);
@@ -226,6 +239,75 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
       }
     } catch (error) {
       console.error('Error deleting attachment:', error);
+    }
+  };
+
+  // Load all available queues
+  const loadQueues = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/queues`);
+      if (response.ok) {
+        const data = await response.json();
+        setAllQueues(data.queues || []);
+      }
+    } catch (error) {
+      console.error('Error loading queues:', error);
+    }
+  };
+
+  // Load current queue assignments for this work order
+  const loadQueueAssignments = async () => {
+    setLoadingQueues(true);
+    try {
+      const response = await fetch(`${API_BASE}/work-orders/${workOrder.id}/queue-assignments`);
+      if (response.ok) {
+        const data = await response.json();
+        const assignedQueueIds = new Set(data.queues.map((q: any) => q.queue_id));
+        setQueueAssignments(assignedQueueIds);
+      }
+    } catch (error) {
+      console.error('Error loading queue assignments:', error);
+    } finally {
+      setLoadingQueues(false);
+    }
+  };
+
+  // Toggle work order in/out of a queue
+  const handleQueueToggle = async (queueId: number, isCurrentlyAssigned: boolean) => {
+    try {
+      if (isCurrentlyAssigned) {
+        // Remove from queue
+        const response = await fetch(
+          `${API_BASE}/work-orders/${workOrder.id}/queue-assignments/${queueId}`,
+          {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: null })
+          }
+        );
+        if (response.ok) {
+          setQueueAssignments(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(queueId);
+            return newSet;
+          });
+        }
+      } else {
+        // Add to queue
+        const response = await fetch(
+          `${API_BASE}/work-orders/${workOrder.id}/queue-assignments/${queueId}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: null })
+          }
+        );
+        if (response.ok) {
+          setQueueAssignments(prev => new Set([...prev, queueId]));
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling queue assignment:', error);
     }
   };
 

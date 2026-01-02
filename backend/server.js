@@ -5415,6 +5415,142 @@ app.post('/api/work-orders/:id/checkout', async (req, res) => {
 });
 
 /**
+ * @route GET /api/work-orders/:id/queue-assignments
+ * @description Get all queue assignments for a work order
+ */
+app.get('/api/work-orders/:id/queue-assignments', async (req, res) => {
+  try {
+    const workOrderId = req.params.id;
+    console.log(`📋 Fetching queue assignments for work order ${workOrderId}`);
+
+    const result = await pool.query(`
+      SELECT
+        q.id AS queue_id,
+        q.queue_name,
+        q.queue_type,
+        q.color,
+        q.display_order,
+        qa.assigned_at,
+        qa.assigned_by,
+        qa.priority,
+        qa.assignment_notes
+      FROM work_order_queue_assignments qa
+      JOIN work_order_queues q ON qa.queue_id = q.id
+      WHERE qa.work_order_id = $1
+        AND qa.removed_at IS NULL
+      ORDER BY q.display_order
+    `, [workOrderId]);
+
+    console.log(`✅ Found ${result.rows.length} queue assignments`);
+    res.json({ queues: result.rows });
+  } catch (error) {
+    console.error('❌ Get queue assignments error:', error);
+    res.status(500).json({ error: 'Failed to fetch queue assignments' });
+  }
+});
+
+/**
+ * @route POST /api/work-orders/:id/queue-assignments/:queueId
+ * @description Add work order to a queue
+ */
+app.post('/api/work-orders/:id/queue-assignments/:queueId', async (req, res) => {
+  try {
+    const { id: workOrderId, queueId } = req.params;
+    const { userId, notes } = req.body;
+
+    console.log(`➕ Adding work order ${workOrderId} to queue ${queueId}`);
+
+    // Check if already in this queue
+    const existing = await pool.query(`
+      SELECT id FROM work_order_queue_assignments
+      WHERE work_order_id = $1 AND queue_id = $2 AND removed_at IS NULL
+    `, [workOrderId, queueId]);
+
+    if (existing.rows.length > 0) {
+      return res.json({
+        success: false,
+        message: 'Work order is already in this queue'
+      });
+    }
+
+    // Add to queue
+    await pool.query(`
+      INSERT INTO work_order_queue_assignments (
+        work_order_id, queue_id, assigned_by, assignment_notes
+      ) VALUES ($1, $2, $3, $4)
+    `, [workOrderId, queueId, userId || null, notes || null]);
+
+    // Log to history
+    await pool.query(`
+      INSERT INTO work_order_queue_history (
+        work_order_id, to_queue_id, moved_by, move_reason, automatic
+      ) VALUES ($1, $2, $3, $4, FALSE)
+    `, [workOrderId, queueId, userId || null, notes || 'Added to queue']);
+
+    console.log(`✅ Work order ${workOrderId} added to queue ${queueId}`);
+
+    // Get queue info to return
+    const queueInfo = await pool.query(`
+      SELECT queue_name, color FROM work_order_queues WHERE id = $1
+    `, [queueId]);
+
+    res.json({
+      success: true,
+      message: 'Added to queue',
+      queue: queueInfo.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ Add to queue error:', error);
+    res.status(500).json({ error: 'Failed to add work order to queue' });
+  }
+});
+
+/**
+ * @route DELETE /api/work-orders/:id/queue-assignments/:queueId
+ * @description Remove work order from a queue
+ */
+app.delete('/api/work-orders/:id/queue-assignments/:queueId', async (req, res) => {
+  try {
+    const { id: workOrderId, queueId } = req.params;
+    const { userId } = req.body;
+
+    console.log(`➖ Removing work order ${workOrderId} from queue ${queueId}`);
+
+    // Remove from queue (soft delete)
+    const result = await pool.query(`
+      UPDATE work_order_queue_assignments
+      SET removed_at = NOW(), removed_by = $3
+      WHERE work_order_id = $1 AND queue_id = $2 AND removed_at IS NULL
+      RETURNING id
+    `, [workOrderId, queueId, userId || null]);
+
+    if (result.rows.length === 0) {
+      return res.json({
+        success: false,
+        message: 'Work order is not in this queue'
+      });
+    }
+
+    // Log to history
+    await pool.query(`
+      INSERT INTO work_order_queue_history (
+        work_order_id, from_queue_id, moved_by, move_reason, automatic
+      ) VALUES ($1, $2, $3, 'Removed from queue', FALSE)
+    `, [workOrderId, queueId, userId || null]);
+
+    console.log(`✅ Work order ${workOrderId} removed from queue ${queueId}`);
+
+    res.json({
+      success: true,
+      message: 'Removed from queue'
+    });
+  } catch (error) {
+    console.error('❌ Remove from queue error:', error);
+    res.status(500).json({ error: 'Failed to remove work order from queue' });
+  }
+});
+
+/**
  * @route GET /api/work-orders/:id/queue-history
  * @description Get queue movement history for a work order
  */
