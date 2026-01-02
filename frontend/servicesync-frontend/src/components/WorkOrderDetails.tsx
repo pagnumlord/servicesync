@@ -455,8 +455,9 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
 
       if (response.ok) {
         const updated = await response.json();
-        setEditedWorkOrder({ ...editedWorkOrder, ...updated.work_order });
-        onUpdate?.();
+        const newWorkOrder = { ...editedWorkOrder, ...updated.work_order };
+        setEditedWorkOrder(newWorkOrder);
+        onUpdate?.(newWorkOrder);
       }
     } catch (error) {
       console.error('Error updating multi-day project:', error);
