@@ -7523,8 +7523,12 @@ app.post('/api/work-orders/:id/line-items', async (req, res) => {
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Error creating line item:', error);
-    res.status(500).json({ error: 'Failed to create line item' });
+    console.error('❌ Error creating line item:', error);
+    console.error('Request body:', req.body);
+    res.status(500).json({
+      error: 'Failed to create line item',
+      details: error.message
+    });
   }
 });
 

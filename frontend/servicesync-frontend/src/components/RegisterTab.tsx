@@ -124,13 +124,40 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
 
   const handleAddItem = async () => {
     try {
+      // Build description from product and modifier
+      const description = newItem.modifier
+        ? `${newItem.product} - ${newItem.modifier}`
+        : newItem.product || 'Line Item';
+
+      // Prepare payload for backend
+      const payload = {
+        item_type: newItem.item_type,
+        description: description,
+        part_number: newItem.part_number,
+        manufacturer: newItem.manufacturer,
+        quantity: newItem.quantity,
+        unit_of_measure: newItem.unit_of_measure,
+        unit_cost: newItem.unit_cost || 0,
+        unit_price: newItem.unit_price || 0,
+        // For labor items, labor_hours = quantity
+        labor_hours: newItem.item_type === 'labor' ? newItem.quantity : newItem.labor_hours,
+        labor_rate: newItem.item_type === 'labor' ? (newItem.labor_rate || newItem.unit_price) : newItem.labor_rate,
+        is_billable: newItem.is_billable !== false,
+        is_taxable: newItem.is_taxable !== false,
+        is_warranty: newItem.is_warranty || false,
+        notes: newItem.notes
+      };
+
       const response = await fetch(`${API_BASE}/work-orders/${workOrderId}/line-items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newItem)
+        body: JSON.stringify(payload)
       });
 
-      if (!response.ok) throw new Error('Failed to add line item');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to add line item');
+      }
 
       await loadLineItems();
       setShowAddForm(false);
