@@ -116,12 +116,14 @@ interface ICUDispatchBoardProps {
   onWorkOrderSelect?: (workOrder: WorkOrder) => void;
   onOpenWorkOrder?: (workOrder: WorkOrder) => void;
   onSocketStatusChange?: (status: string) => void;
+  onNavigateToCustomer?: (customerId: number) => void;
 }
 
 function ICUDispatchBoard({
   onWorkOrderSelect,
   onOpenWorkOrder,
-  onSocketStatusChange
+  onSocketStatusChange,
+  onNavigateToCustomer
 }: ICUDispatchBoardProps) {
   const handleWorkOrderSelect = onWorkOrderSelect || onOpenWorkOrder;
   const [viewMode, setViewMode] = useState<'board' | 'calendar'>('board');
@@ -546,6 +548,11 @@ function ICUDispatchBoard({
     switch (action) {
       case 'view':
         handleWorkOrderSelect?.(workOrder);
+        break;
+      case 'customer':
+        if (workOrder.customer_id && onNavigateToCustomer) {
+          onNavigateToCustomer(workOrder.customer_id);
+        }
         break;
       case 'complete':
         setSelectedWorkOrderForCompletion(workOrder);
@@ -1476,10 +1483,30 @@ function ICUDispatchBoard({
                 borderRadius: '0.25rem',
                 fontSize: '0.875rem'
               }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F3F4F6'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
             >
               View Details
             </button>
-            
+
+            <button
+              onClick={() => handleContextMenuAction('customer', contextMenu.workOrder)}
+              style={{
+                width: '100%',
+                textAlign: 'left',
+                padding: '0.5rem',
+                backgroundColor: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                borderRadius: '0.25rem',
+                fontSize: '0.875rem'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F3F4F6'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+              Customer Page
+            </button>
+
             {contextMenu.workOrder.status !== 'Complete' && contextMenu.workOrder.status !== 'Suspended' && (
               <>
                 <button
@@ -1494,6 +1521,8 @@ function ICUDispatchBoard({
                     borderRadius: '0.25rem',
                     fontSize: '0.875rem'
                   }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F3F4F6'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                 >
                   Complete
                 </button>
@@ -1509,6 +1538,8 @@ function ICUDispatchBoard({
                     borderRadius: '0.25rem',
                     fontSize: '0.875rem'
                   }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F3F4F6'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                 >
                   Suspend
                 </button>
@@ -1528,6 +1559,8 @@ function ICUDispatchBoard({
                   borderRadius: '0.25rem',
                   fontSize: '0.875rem'
                 }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F3F4F6'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               >
                 Resume
               </button>

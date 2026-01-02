@@ -65,7 +65,10 @@ const ServiceSync = () => {
   const [showNewPODialog, setShowNewPODialog] = useState(false);
   const [showReceivePODialog, setShowReceivePODialog] = useState(false);
   const [selectedPOToReceive, setSelectedPOToReceive] = useState<any>(null);
-  
+
+  // Customer Navigation State (for deep-linking to specific customer)
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | undefined>(undefined);
+
   // Data states
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [unassignedWorkOrders, setUnassignedWorkOrders] = useState<WorkOrder[]>([]);
@@ -262,6 +265,19 @@ const handleNewWorkOrder = async (workOrderData: any) => {
   const handleSocketStatusChange = (status: string) => {
     setWebSocketStatus(status);
   };
+
+  // Handle navigation to customer page from work order
+  const handleNavigateToCustomer = (customerId: number) => {
+    setSelectedCustomerId(customerId);
+    setCurrentView('customers');
+  };
+
+  // Clear selected customer when leaving customers view
+  useEffect(() => {
+    if (currentView !== 'customers') {
+      setSelectedCustomerId(undefined);
+    }
+  }, [currentView]);
 
   // Widget management
   const addWidget = (widgetType: any) => {
@@ -719,6 +735,7 @@ const handleNewWorkOrder = async (workOrderData: any) => {
           <ICUDispatchBoard
             onSocketStatusChange={handleSocketStatusChange}
             onOpenWorkOrder={openWorkOrderDetails}
+            onNavigateToCustomer={handleNavigateToCustomer}
           />
         )}
 
@@ -739,6 +756,7 @@ const handleNewWorkOrder = async (workOrderData: any) => {
         {currentView === 'customers' && (
           <CustomerManagement
             onOpenWorkOrder={openWorkOrderDetails}
+            initialCustomerId={selectedCustomerId}
           />
         )}
 
