@@ -34,6 +34,7 @@ import {
   Layers
 } from 'lucide-react';
 import { WorkOrder } from '../types';
+import RegisterTab from './RegisterTab';
 
 interface WorkOrderDetailsProps {
   workOrder: WorkOrder;
@@ -390,6 +391,7 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
 
   const tabs = [
     { id: 'details' as const, label: 'Details', icon: Info },
+    { id: 'register' as const, label: 'Register', icon: Receipt },
     { id: 'assignments' as const, label: 'Assignments', icon: Calendar },
     { id: 'timeline' as const, label: 'Timeline', icon: Activity },
     { id: 'parts' as const, label: 'Parts & Materials', icon: Package },
@@ -1473,6 +1475,10 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
                 Log time entries, track labor hours, and costs
               </p>
             </div>
+          )}
+
+          {activeTab === 'register' && (
+            <RegisterTab workOrderId={workOrder.id} isReadOnly={false} />
           )}
 
           {activeTab === 'attachments' && (

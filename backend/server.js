@@ -7597,6 +7597,188 @@ app.delete('/api/work-orders/:workOrderId/line-items/:lineItemId', async (req, r
 });
 
 // ========================================
+// TECHNICIAN CHECKOUT ENDPOINT
+// ========================================
+
+/**
+ * @route POST /api/work-orders/:id/tech-checkout
+ * @description Technician checkout with auto line item generation
+ * @body {
+ *   check_in_time, check_out_time, total_hours,
+ *   num_helpers, is_overtime, is_after_hours,
+ *   equipment_used[], work_status, work_performed,
+ *   queue_assignments[], generated_line_items[]
+ * }
+ */
+app.post('/api/work-orders/:id/tech-checkout', async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const workOrderId = req.params.id;
+    const {
+      check_in_time,
+      check_out_time,
+      total_hours,
+      num_helpers,
+      is_overtime,
+      is_after_hours,
+      equipment_used,
+      work_status,
+      work_performed,
+      queue_assignments,
+      generated_line_items
+    } = req.body;
+
+    await client.query('BEGIN');
+
+    console.log(`🔧 Processing checkout for WO #${workOrderId}`);
+
+    // 1. Update work order with checkout info
+    const newStatus = work_status === 'complete' ? 'Complete' :
+                     work_status === 'needs_parts' ? 'Suspended' :
+                     work_status === 'needs_return_trip' ? 'Suspended' :
+                     work_status === 'needs_quote' ? 'Active' :
+                     work_status === 'warranty' ? 'Active' : 'Active';
+
+    await client.query(`
+      UPDATE work_orders
+      SET
+        status = $1,
+        work_performed = $2,
+        checkout_time = $3,
+        updated_at = NOW()
+      WHERE id = $4
+    `, [newStatus, work_performed, check_out_time, workOrderId]);
+
+    console.log(`✅ Updated work order status to: ${newStatus}`);
+
+    // 2. Get next line number
+    const lineNumResult = await client.query(
+      'SELECT COALESCE(MAX(line_number), 0) + 1 as next_line FROM work_order_line_items WHERE work_order_id = $1',
+      [workOrderId]
+    );
+    let currentLineNumber = lineNumResult.rows[0].next_line;
+
+    // 3. Create line items from generated items
+    const createdLineItems = [];
+
+    for (const item of generated_line_items) {
+      const lineItemResult = await client.query(`
+        INSERT INTO work_order_line_items (
+          work_order_id,
+          line_number,
+          item_type,
+          description,
+          quantity,
+          unit_of_measure,
+          unit_cost,
+          unit_price,
+          line_total,
+          cost_total,
+          labor_hours,
+          labor_rate,
+          is_billable,
+          is_taxable,
+          is_warranty,
+          notes
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        RETURNING *
+      `, [
+        workOrderId,
+        currentLineNumber,
+        item.item_type,
+        item.description,
+        item.quantity,
+        item.item_type === 'labor' ? 'HR' : 'EA',
+        0, // unit_cost - would come from cost tracking
+        item.unit_price,
+        item.total,
+        0, // cost_total
+        item.item_type === 'labor' ? item.quantity : null,
+        item.item_type === 'labor' ? item.unit_price : null,
+        true, // is_billable
+        item.item_type !== 'warranty', // taxable unless warranty
+        work_status === 'warranty', // is_warranty
+        `Auto-generated from checkout - ${is_overtime ? 'OT' : 'RT'}, ${num_helpers} helpers`
+      ]);
+
+      createdLineItems.push(lineItemResult.rows[0]);
+      currentLineNumber++;
+    }
+
+    console.log(`✅ Created ${createdLineItems.length} line items`);
+
+    // 4. Assign to queues
+    if (queue_assignments && queue_assignments.length > 0) {
+      for (const queueName of queue_assignments) {
+        // Get queue ID by name
+        const queueResult = await client.query(
+          'SELECT id FROM work_order_queues WHERE queue_name = $1',
+          [queueName]
+        );
+
+        if (queueResult.rows.length > 0) {
+          const queueId = queueResult.rows[0].id;
+
+          // Check if already assigned
+          const existingAssignment = await client.query(`
+            SELECT id FROM work_order_queue_assignments
+            WHERE work_order_id = $1 AND queue_id = $2 AND removed_at IS NULL
+          `, [workOrderId, queueId]);
+
+          if (existingAssignment.rows.length === 0) {
+            // Assign to queue
+            await client.query(`
+              INSERT INTO work_order_queue_assignments (
+                work_order_id,
+                queue_id,
+                assignment_notes
+              ) VALUES ($1, $2, $3)
+            `, [workOrderId, queueId, `Auto-assigned from checkout: ${work_status}`]);
+
+            // Log to history
+            await client.query(`
+              INSERT INTO work_order_queue_history (
+                work_order_id,
+                to_queue_id,
+                move_reason,
+                automatic
+              ) VALUES ($1, $2, $3, TRUE)
+            `, [workOrderId, queueId, `Checkout - ${work_status}`]);
+
+            console.log(`✅ Assigned to queue: ${queueName}`);
+          }
+        }
+      }
+    }
+
+    // 5. Record checkout timestamp (if we have a timestamps table)
+    // This would go into a work_order_timestamps table if it exists
+
+    await client.query('COMMIT');
+
+    res.json({
+      success: true,
+      message: 'Checkout completed successfully',
+      work_order_status: newStatus,
+      line_items_created: createdLineItems.length,
+      queues_assigned: queue_assignments.length,
+      line_items: createdLineItems
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Checkout error:', error);
+    res.status(500).json({
+      error: 'Failed to complete checkout',
+      details: error.message
+    });
+  } finally {
+    client.release();
+  }
+});
+
+// ========================================
 // INVOICE ENDPOINTS
 // ========================================
 
