@@ -969,10 +969,10 @@ app.get('/api/customers/:id', async (req, res) => {
 
     const customer = customerResult.rows[0];
 
-    // Get customer's active equipment
+    // Get customer's equipment
     const equipmentResult = await pool.query(`
       SELECT * FROM equipment
-      WHERE customer_id = $1 AND is_active = true
+      WHERE customer_id = $1
       ORDER BY equipment_type, equipment_number
     `, [customerId]);
 

@@ -10,7 +10,8 @@
     "schema": "node run-schema.js",
     "setup:attachments": "node run-schema.js attachments-schema.sql",
     "setup:queues": "node scripts/populate-queues.js",
-    "fix:trigger": "node scripts/disable-wo-trigger.js"
+    "fix:trigger": "node scripts/disable-wo-trigger.js",
+    "fix:customer-active": "node scripts/add-customer-is-active.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
