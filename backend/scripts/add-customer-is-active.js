@@ -1,13 +1,15 @@
+require('dotenv').config();
 const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
 const pool = new Pool({
-  user: process.env.DB_USER || 'servicesync_user',
+  user: process.env.DB_USER || 'postgres',
   host: process.env.DB_HOST || 'localhost',
-  database: process.env.DB_NAME || 'servicesync',
-  password: process.env.DB_PASSWORD || 'servicesync123',
+  database: process.env.DB_NAME || 'servicesync_dev',
+  password: process.env.DB_PASSWORD,
   port: process.env.DB_PORT || 5432,
+  ssl: false,
 });
 
 async function addCustomerIsActive() {
