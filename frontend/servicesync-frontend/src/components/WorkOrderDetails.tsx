@@ -30,7 +30,8 @@ import {
   Info,
   Activity,
   MessageSquare,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Layers
 } from 'lucide-react';
 import { WorkOrder } from '../types';
 
@@ -262,7 +263,7 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
       const response = await fetch(`${API_BASE}/work-orders/${workOrder.id}/queue-assignments`);
       if (response.ok) {
         const data = await response.json();
-        const assignedQueueIds = new Set(data.queues.map((q: any) => q.queue_id));
+        const assignedQueueIds = new Set<number>(data.queues.map((q: any) => Number(q.queue_id)));
         setQueueAssignments(assignedQueueIds);
       }
     } catch (error) {
@@ -888,6 +889,138 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
                     </p>
                   </div>
                 )}
+
+                {/* Work Queues */}
+                <div style={{
+                  backgroundColor: 'white',
+                  borderRadius: '0.75rem',
+                  padding: '1.5rem',
+                  border: '2px solid #E5E7EB'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '1rem'
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem'
+                    }}>
+                      <Layers size={20} style={{ color: '#3B82F6' }} />
+                      <h3 style={{
+                        margin: 0,
+                        fontSize: '1.125rem',
+                        fontWeight: '700',
+                        color: '#111827'
+                      }}>
+                        Work Queues
+                      </h3>
+                    </div>
+                    <button
+                      style={{
+                        padding: '0.375rem 0.75rem',
+                        backgroundColor: '#F3F4F6',
+                        border: '1px solid #D1D5DB',
+                        borderRadius: '0.375rem',
+                        fontSize: '0.75rem',
+                        fontWeight: '600',
+                        color: '#374151',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#E5E7EB'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#F3F4F6'}
+                    >
+                      Audit Log
+                    </button>
+                  </div>
+
+                  {loadingQueues ? (
+                    <div style={{
+                      padding: '2rem',
+                      textAlign: 'center',
+                      color: '#6B7280',
+                      fontSize: '0.875rem'
+                    }}>
+                      Loading queues...
+                    </div>
+                  ) : allQueues.length === 0 ? (
+                    <div style={{
+                      padding: '2rem',
+                      textAlign: 'center',
+                      color: '#6B7280',
+                      fontSize: '0.875rem'
+                    }}>
+                      No queues configured
+                    </div>
+                  ) : (
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.5rem'
+                    }}>
+                      {allQueues.map((queue) => {
+                        const isAssigned = queueAssignments.has(queue.id);
+                        return (
+                          <label
+                            key={queue.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.75rem',
+                              padding: '0.75rem',
+                              borderRadius: '0.5rem',
+                              border: '1px solid #E5E7EB',
+                              backgroundColor: isAssigned ? '#EFF6FF' : 'white',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isAssigned) e.currentTarget.style.backgroundColor = '#F9FAFB';
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isAssigned) e.currentTarget.style.backgroundColor = 'white';
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isAssigned}
+                              onChange={() => handleQueueToggle(queue.id, isAssigned)}
+                              style={{
+                                width: '16px',
+                                height: '16px',
+                                cursor: 'pointer',
+                                accentColor: queue.color || '#3B82F6'
+                              }}
+                            />
+                            <div style={{ flex: 1 }}>
+                              <div style={{
+                                fontSize: '0.875rem',
+                                fontWeight: isAssigned ? '600' : '500',
+                                color: '#111827'
+                              }}>
+                                {queue.queue_name}
+                              </div>
+                            </div>
+                            {queue.color && (
+                              <div
+                                style={{
+                                  width: '12px',
+                                  height: '12px',
+                                  borderRadius: '50%',
+                                  backgroundColor: queue.color,
+                                  border: '1px solid rgba(0,0,0,0.1)'
+                                }}
+                              />
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
 
                 {/* Cost Summary */}
                 {(workOrder.total_cost || workOrder.labor_hours) && (
