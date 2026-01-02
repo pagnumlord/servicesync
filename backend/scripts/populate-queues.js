@@ -54,13 +54,14 @@ async function populateQueues() {
 
     for (const queue of queues) {
       const result = await pool.query(`
-        INSERT INTO work_order_queues (queue_name, queue_type, color, display_order)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO work_order_queues (queue_name, queue_type, color, display_order, is_active)
+        VALUES ($1, $2, $3, $4, TRUE)
         ON CONFLICT (queue_name) DO UPDATE
           SET
             queue_type = EXCLUDED.queue_type,
             color = EXCLUDED.color,
-            display_order = EXCLUDED.display_order
+            display_order = EXCLUDED.display_order,
+            is_active = TRUE
         RETURNING id, (xmax = 0) AS inserted
       `, [queue.name, queue.type, queue.color, queue.order]);
 
