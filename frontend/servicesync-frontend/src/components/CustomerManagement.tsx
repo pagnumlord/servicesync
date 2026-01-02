@@ -1195,21 +1195,28 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
 
   // Handle initial customer ID (for deep linking)
   useEffect(() => {
+    console.log('📋 CustomerManagement received initialCustomerId:', initialCustomerId);
     if (initialCustomerId) {
       // Fetch and show specific customer
       const fetchCustomer = async () => {
         try {
+          console.log(`🔄 Fetching customer ${initialCustomerId}...`);
           const response = await fetch(`${API_BASE}/customers/${initialCustomerId}`);
           if (response.ok) {
             const customer = await response.json();
+            console.log('✅ Customer fetched successfully:', customer);
             setSelectedCustomer(customer);
             setShowCustomerDetails(true);
+          } else {
+            console.error('❌ Failed to fetch customer, status:', response.status);
           }
         } catch (err) {
-          console.error('Error fetching customer:', err);
+          console.error('❌ Error fetching customer:', err);
         }
       };
       fetchCustomer();
+    } else {
+      console.log('ℹ️ No initialCustomerId provided');
     }
   }, [initialCustomerId]);
 

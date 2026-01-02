@@ -550,8 +550,12 @@ function ICUDispatchBoard({
         handleWorkOrderSelect?.(workOrder);
         break;
       case 'customer':
+        console.log('🔍 Navigate to customer - Work Order:', workOrder);
+        console.log('🔍 Customer ID:', workOrder.customer_id);
         if (workOrder.customer_id && onNavigateToCustomer) {
           onNavigateToCustomer(workOrder.customer_id);
+        } else {
+          console.warn('⚠️ No customer_id found on work order or no handler');
         }
         break;
       case 'complete':

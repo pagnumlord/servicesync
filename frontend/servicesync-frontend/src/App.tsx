@@ -268,6 +268,7 @@ const handleNewWorkOrder = async (workOrderData: any) => {
 
   // Handle navigation to customer page from work order
   const handleNavigateToCustomer = (customerId: number) => {
+    console.log('🎯 Navigating to customer:', customerId);
     setSelectedCustomerId(customerId);
     setCurrentView('customers');
   };
