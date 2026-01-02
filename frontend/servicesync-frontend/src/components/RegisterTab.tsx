@@ -197,21 +197,21 @@ const RegisterTab: React.FC<RegisterTabProps> = ({ workOrderId, isReadOnly = fal
   const calculateTotals = () => {
     const subtotal = lineItems
       .filter(item => item.is_billable)
-      .reduce((sum, item) => sum + item.line_total, 0);
+      .reduce((sum, item) => sum + Number(item.line_total || 0), 0);
 
     const totalCost = lineItems
-      .reduce((sum, item) => sum + item.cost_total, 0);
+      .reduce((sum, item) => sum + Number(item.cost_total || 0), 0);
 
     const totalProfit = subtotal - totalCost;
     const profitMargin = subtotal > 0 ? (totalProfit / subtotal) * 100 : 0;
 
     const laborTotal = lineItems
       .filter(item => item.item_type === 'labor')
-      .reduce((sum, item) => sum + item.line_total, 0);
+      .reduce((sum, item) => sum + Number(item.line_total || 0), 0);
 
     const partsTotal = lineItems
       .filter(item => ['part', 'material', 'equipment'].includes(item.item_type))
-      .reduce((sum, item) => sum + item.line_total, 0);
+      .reduce((sum, item) => sum + Number(item.line_total || 0), 0);
 
     return { subtotal, totalCost, totalProfit, profitMargin, laborTotal, partsTotal };
   };
