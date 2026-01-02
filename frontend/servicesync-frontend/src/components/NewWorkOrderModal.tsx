@@ -56,7 +56,11 @@ const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({
     scheduledDate: new Date().toISOString().split('T')[0],
     scheduledTimeSlot: '',
     assignedTechId: '',
-    customerPO: ''
+    customerPO: '',
+    isMultiDay: false,
+    projectStartDate: new Date().toISOString().split('T')[0],
+    projectEndDate: new Date().toISOString().split('T')[0],
+    estimatedHours: ''
   });
 
   const [newContact, setNewContact] = useState({
@@ -178,7 +182,21 @@ const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({
       const payload = {
         customerId: selectedCustomer.id,
         contactId: selectedContact?.id,
-        ...workOrder
+        problemDescription: workOrder.problemDescription,
+        equipmentId: workOrder.equipmentId,
+        equipmentType: workOrder.equipmentType,
+        callRate: workOrder.callRate,
+        callUrgency: workOrder.callUrgency,
+        callType: workOrder.callType,
+        scheduledDate: workOrder.isMultiDay ? workOrder.projectStartDate : workOrder.scheduledDate,
+        scheduledTimeSlot: workOrder.scheduledTimeSlot,
+        assignedTechId: workOrder.assignedTechId,
+        customerPO: workOrder.customerPO,
+        // Multi-day fields
+        is_multi_day: workOrder.isMultiDay,
+        project_start_date: workOrder.isMultiDay ? workOrder.projectStartDate : null,
+        project_end_date: workOrder.isMultiDay ? workOrder.projectEndDate : null,
+        estimated_hours: workOrder.estimatedHours ? parseFloat(workOrder.estimatedHours) : null
       };
 
       const response = await fetch('http://localhost:5000/api/work-orders', {
@@ -996,17 +1014,135 @@ const NewWorkOrderModal: React.FC<NewWorkOrderModalProps> = ({
                       type="date"
                       value={workOrder.scheduledDate}
                       onChange={(e) => setWorkOrder({ ...workOrder, scheduledDate: e.target.value })}
+                      disabled={workOrder.isMultiDay}
                       style={{
                         width: '100%',
                         padding: '0.75rem',
                         border: '2px solid #E5E7EB',
                         borderRadius: '0.75rem',
                         fontSize: '0.9375rem',
-                        outline: 'none'
+                        outline: 'none',
+                        backgroundColor: workOrder.isMultiDay ? '#F3F4F6' : 'white',
+                        cursor: workOrder.isMultiDay ? 'not-allowed' : 'text'
                       }}
                     />
                   </div>
                 </div>
+
+                {/* Multi-Day Project Checkbox */}
+                <div style={{ marginTop: '1rem' }}>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    cursor: 'pointer',
+                    fontSize: '0.9375rem',
+                    color: '#374151'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={workOrder.isMultiDay}
+                      onChange={(e) => setWorkOrder({ ...workOrder, isMultiDay: e.target.checked })}
+                      style={{
+                        width: '18px',
+                        height: '18px',
+                        cursor: 'pointer'
+                      }}
+                    />
+                    <span style={{ fontWeight: '500' }}>This is a multi-day project</span>
+                  </label>
+                </div>
+
+                {/* Multi-Day Date Range (shown when isMultiDay is true) */}
+                {workOrder.isMultiDay && (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr 1fr',
+                    gap: '1rem',
+                    marginTop: '1rem',
+                    padding: '1rem',
+                    backgroundColor: '#F0F9FF',
+                    borderRadius: '0.75rem',
+                    border: '2px solid #BFDBFE'
+                  }}>
+                    <div>
+                      <label style={{
+                        display: 'block',
+                        fontSize: '0.875rem',
+                        fontWeight: '600',
+                        color: '#1E40AF',
+                        marginBottom: '0.5rem'
+                      }}>
+                        Start Date
+                      </label>
+                      <input
+                        type="date"
+                        value={workOrder.projectStartDate}
+                        onChange={(e) => setWorkOrder({ ...workOrder, projectStartDate: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem',
+                          border: '2px solid #BFDBFE',
+                          borderRadius: '0.75rem',
+                          fontSize: '0.9375rem',
+                          outline: 'none'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{
+                        display: 'block',
+                        fontSize: '0.875rem',
+                        fontWeight: '600',
+                        color: '#1E40AF',
+                        marginBottom: '0.5rem'
+                      }}>
+                        End Date
+                      </label>
+                      <input
+                        type="date"
+                        value={workOrder.projectEndDate}
+                        onChange={(e) => setWorkOrder({ ...workOrder, projectEndDate: e.target.value })}
+                        min={workOrder.projectStartDate}
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem',
+                          border: '2px solid #BFDBFE',
+                          borderRadius: '0.75rem',
+                          fontSize: '0.9375rem',
+                          outline: 'none'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{
+                        display: 'block',
+                        fontSize: '0.875rem',
+                        fontWeight: '600',
+                        color: '#1E40AF',
+                        marginBottom: '0.5rem'
+                      }}>
+                        Est. Hours
+                      </label>
+                      <input
+                        type="number"
+                        value={workOrder.estimatedHours}
+                        onChange={(e) => setWorkOrder({ ...workOrder, estimatedHours: e.target.value })}
+                        placeholder="Optional"
+                        step="0.5"
+                        min="0"
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem',
+                          border: '2px solid #BFDBFE',
+                          borderRadius: '0.75rem',
+                          fontSize: '0.9375rem',
+                          outline: 'none'
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div>

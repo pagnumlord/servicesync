@@ -52,18 +52,30 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     let current = new Date(startDate);
     while (current <= endDate) {
       const dayWorkOrders = workOrders.filter(wo => {
+        // Handle multi-day work orders
+        if (wo.is_multi_day || wo.multi_day) {
+          if (!wo.start_date || !wo.end_date) return false;
+          const startDate = new Date(wo.start_date);
+          const endDate = new Date(wo.end_date);
+          startDate.setHours(0, 0, 0, 0);
+          endDate.setHours(0, 0, 0, 0);
+          const currentDay = new Date(current);
+          currentDay.setHours(0, 0, 0, 0);
+          return currentDay >= startDate && currentDay <= endDate;
+        }
+        // Handle single-day work orders
         if (!wo.scheduled_date) return false;
         const woDate = new Date(wo.scheduled_date);
         return woDate.toDateString() === current.toDateString();
       });
-      
+
       days.push({
         date: new Date(current),
         isCurrentMonth: current.getMonth() === month,
         isToday: current.toDateString() === today.toDateString(),
         workOrders: dayWorkOrders
       });
-      
+
       current.setDate(current.getDate() + 1);
     }
     
@@ -330,7 +342,21 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             overflowY: 'auto'
           }}>
             {workOrders
-              .filter(wo => wo.scheduled_date === selectedDate.toISOString().split('T')[0])
+              .filter(wo => {
+                // Include multi-day work orders that span this date
+                if (wo.is_multi_day || wo.multi_day) {
+                  if (!wo.start_date || !wo.end_date) return false;
+                  const startDate = new Date(wo.start_date);
+                  const endDate = new Date(wo.end_date);
+                  const selected = new Date(selectedDate);
+                  startDate.setHours(0, 0, 0, 0);
+                  endDate.setHours(0, 0, 0, 0);
+                  selected.setHours(0, 0, 0, 0);
+                  return selected >= startDate && selected <= endDate;
+                }
+                // Include single-day work orders scheduled for this date
+                return wo.scheduled_date === selectedDate.toISOString().split('T')[0];
+              })
               .sort((a, b) => (a.scheduled_time_slot || '').localeCompare(b.scheduled_time_slot || ''))
               .map(workOrder => (
                 <div
@@ -390,7 +416,19 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               ))}
           </div>
           
-          {workOrders.filter(wo => wo.scheduled_date === selectedDate.toISOString().split('T')[0]).length === 0 && (
+          {workOrders.filter(wo => {
+            if (wo.is_multi_day || wo.multi_day) {
+              if (!wo.start_date || !wo.end_date) return false;
+              const startDate = new Date(wo.start_date);
+              const endDate = new Date(wo.end_date);
+              const selected = new Date(selectedDate);
+              startDate.setHours(0, 0, 0, 0);
+              endDate.setHours(0, 0, 0, 0);
+              selected.setHours(0, 0, 0, 0);
+              return selected >= startDate && selected <= endDate;
+            }
+            return wo.scheduled_date === selectedDate.toISOString().split('T')[0];
+          }).length === 0 && (
             <p style={{
               color: '#6B7280',
               fontSize: '0.875rem',

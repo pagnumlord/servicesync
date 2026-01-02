@@ -2347,57 +2347,84 @@ app.get('/api/dispatch/board', async (req, res) => {
     if (isToday) {
       // TODAY: Show all incomplete work orders regardless of their scheduled_date
       // Plus any completed work orders from today
+      // PLUS multi-day work orders that span today
       workOrdersQuery = `
-        SELECT wo.*, 
-               c.name as customer_name, 
-               c.service_city, 
+        SELECT wo.*,
+               c.name as customer_name,
+               c.service_city,
                c.zone as customer_zone,
-               e.equipment_number, 
+               e.equipment_number,
                e.equipment_type,
-               t.first_name as tech_first_name, 
+               t.first_name as tech_first_name,
                t.last_name as tech_last_name,
-               CASE 
+               wo.project_start_date as start_date,
+               wo.project_end_date as end_date,
+               CASE
                  WHEN wo.status IN ('Complete', 'Completed') THEN 'completed'
                  WHEN wo.completion_queue = 'Parts Ordered' THEN 'parts_ordered'
                  WHEN wo.completion_queue = 'Ready to Schedule' THEN 'ready_to_schedule'
                  WHEN wo.status = 'Suspended' THEN 'suspended'
+                 WHEN wo.is_multi_day = TRUE THEN 'multi_day'
                  ELSE 'normal'
                END as visibility_reason
         FROM work_orders wo
         LEFT JOIN customers c ON wo.customer_id = c.id
         LEFT JOIN equipment e ON wo.equipment_id = e.id
         LEFT JOIN technicians t ON wo.assigned_tech_id = t.id
-        WHERE 
+        WHERE
           -- All incomplete work orders show on today
           (wo.status NOT IN ('Complete', 'Completed', 'Deleted'))
           OR
           -- Completed work orders only from today
           (wo.status IN ('Complete', 'Completed') AND DATE(wo.completed_at) = $1)
-        ORDER BY wo.assigned_tech_id NULLS FIRST, 
-                 wo.priority DESC, 
+          OR
+          -- Multi-day work orders that span today
+          (wo.is_multi_day = TRUE
+           AND wo.project_start_date <= $1::date
+           AND wo.project_end_date >= $1::date
+           AND wo.status NOT IN ('Deleted'))
+        ORDER BY wo.assigned_tech_id NULLS FIRST,
+                 wo.priority DESC,
                  wo.created_at
       `;
       queryParams = [today];
     } else {
-      // HISTORICAL/FUTURE DATES: Only show work orders that were completed on that date
+      // HISTORICAL/FUTURE DATES: Show work orders completed on that date OR multi-day work orders spanning that date
       workOrdersQuery = `
-        SELECT wo.*, 
-               c.name as customer_name, 
-               c.service_city, 
+        SELECT wo.*,
+               c.name as customer_name,
+               c.service_city,
                c.zone as customer_zone,
-               e.equipment_number, 
+               e.equipment_number,
                e.equipment_type,
-               t.first_name as tech_first_name, 
+               t.first_name as tech_first_name,
                t.last_name as tech_last_name,
-               'completed' as visibility_reason
+               wo.project_start_date as start_date,
+               wo.project_end_date as end_date,
+               CASE
+                 WHEN wo.status IN ('Complete', 'Completed') THEN 'completed'
+                 WHEN wo.is_multi_day = TRUE THEN 'multi_day'
+                 ELSE 'normal'
+               END as visibility_reason
         FROM work_orders wo
         LEFT JOIN customers c ON wo.customer_id = c.id
         LEFT JOIN equipment e ON wo.equipment_id = e.id
         LEFT JOIN technicians t ON wo.assigned_tech_id = t.id
-        WHERE 
-          wo.status IN ('Complete', 'Completed') 
-          AND DATE(wo.completed_at) = $1
-        ORDER BY wo.completed_at DESC
+        WHERE
+          (wo.status IN ('Complete', 'Completed')
+           AND DATE(wo.completed_at) = $1)
+          OR
+          -- Multi-day work orders that span this date
+          (wo.is_multi_day = TRUE
+           AND wo.project_start_date <= $1::date
+           AND wo.project_end_date >= $1::date
+           AND wo.status NOT IN ('Deleted'))
+          OR
+          -- Single-day work orders scheduled for this date
+          (COALESCE(wo.is_multi_day, FALSE) = FALSE
+           AND DATE(wo.scheduled_date) = $1::date
+           AND wo.status NOT IN ('Deleted'))
+        ORDER BY wo.completed_at DESC NULLS LAST, wo.created_at DESC
       `;
       queryParams = [date];
     }
