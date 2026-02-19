@@ -12,9 +12,14 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  AlertCircle
+  AlertCircle,
+  X,
+  CreditCard
 } from 'lucide-react';
 import { API_BASE_URL } from '../utils/constants';
+import { Invoice as InvoiceType, InvoiceLineItem, InvoicePayment } from '../types';
+import { format } from 'date-fns';
+import axios from 'axios';
 
 interface Invoice {
   id: number;
@@ -37,7 +42,16 @@ const Invoices: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceType | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({
+    amount: 0,
+    payment_method: 'check' as 'check' | 'cash' | 'credit_card' | 'ach' | 'online' | 'other',
+    payment_date: new Date().toISOString().split('T')[0],
+    reference_number: '',
+    notes: ''
+  });
 
   useEffect(() => {
     fetchInvoices();
@@ -99,6 +113,71 @@ const Invoices: React.FC = () => {
     } catch (error) {
       console.error('Error exporting to QuickBooks:', error);
       alert('Failed to export to QuickBooks');
+    }
+  };
+
+  const handleViewInvoice = async (invoiceId: number) => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/invoices/${invoiceId}`);
+      setSelectedInvoice(response.data);
+      setShowDetailModal(true);
+    } catch (error) {
+      console.error('Error loading invoice details:', error);
+      alert('Error loading invoice details');
+    }
+  };
+
+  const handleSendInvoice = async (invoiceId: number) => {
+    if (!window.confirm('Send this invoice to the customer?')) return;
+
+    try {
+      await axios.post(`${API_BASE_URL}/api/invoices/${invoiceId}/send`);
+      alert('Invoice sent successfully');
+      fetchInvoices();
+      if (selectedInvoice?.id === invoiceId) {
+        handleViewInvoice(invoiceId);
+      }
+    } catch (error) {
+      console.error('Error sending invoice:', error);
+      alert('Error sending invoice');
+    }
+  };
+
+  const handleOpenPaymentModal = (invoice: InvoiceType) => {
+    setSelectedInvoice(invoice);
+    setPaymentForm({
+      amount: invoice.balance_due,
+      payment_method: 'check',
+      payment_date: new Date().toISOString().split('T')[0],
+      reference_number: '',
+      notes: ''
+    });
+    setShowPaymentModal(true);
+  };
+
+  const handleRecordPayment = async () => {
+    if (!selectedInvoice) return;
+
+    try {
+      await axios.post(`${API_BASE_URL}/api/invoices/${selectedInvoice.id}/payments`, paymentForm);
+      alert('Payment recorded successfully');
+      setShowPaymentModal(false);
+      fetchInvoices();
+      if (showDetailModal) {
+        handleViewInvoice(selectedInvoice.id);
+      }
+    } catch (error) {
+      console.error('Error recording payment:', error);
+      alert('Error recording payment');
+    }
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '-';
+    try {
+      return format(new Date(dateString), 'MMM d, yyyy');
+    } catch {
+      return dateString;
     }
   };
 
@@ -314,6 +393,7 @@ const Invoices: React.FC = () => {
                       gap: '0.5rem'
                     }}>
                       <button
+                        onClick={() => handleViewInvoice(invoice.id)}
                         style={{
                           padding: '0.5rem',
                           backgroundColor: 'transparent',
@@ -402,6 +482,426 @@ const Invoices: React.FC = () => {
           color="#3B82F6"
         />
       </div>
+
+      {/* Invoice Detail Modal */}
+      {showDetailModal && selectedInvoice && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '1rem'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '0.75rem',
+            width: '100%',
+            maxWidth: '900px',
+            maxHeight: '90vh',
+            overflow: 'auto'
+          }}>
+            {/* Modal Header */}
+            <div style={{ padding: '1.5rem', borderBottom: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#1F2937', margin: 0 }}>
+                  {selectedInvoice.invoice_number}
+                </h2>
+                <p style={{ color: '#6B7280', marginTop: '0.25rem', margin: 0, fontSize: '0.875rem' }}>
+                  {selectedInvoice.customer_name}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowDetailModal(false)}
+                style={{
+                  padding: '0.5rem',
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#6B7280'
+                }}
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div style={{ padding: '1.5rem' }}>
+              {/* Info Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', marginBottom: '2rem' }}>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: '#6B7280', marginBottom: '0.25rem' }}>Status</div>
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.375rem',
+                    padding: '0.25rem 0.75rem',
+                    borderRadius: '9999px',
+                    backgroundColor: getStatusColor(selectedInvoice.status || 'draft') + '20',
+                    color: getStatusColor(selectedInvoice.status || 'draft'),
+                    fontSize: '0.75rem',
+                    fontWeight: '600',
+                    textTransform: 'capitalize'
+                  }}>
+                    {getStatusIcon(selectedInvoice.status || 'draft')}
+                    {selectedInvoice.status}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: '#6B7280', marginBottom: '0.25rem' }}>Issue Date</div>
+                  <div style={{ fontSize: '0.875rem', color: '#1F2937', fontWeight: '500' }}>
+                    {formatDate(selectedInvoice.issue_date)}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: '#6B7280', marginBottom: '0.25rem' }}>Due Date</div>
+                  <div style={{ fontSize: '0.875rem', color: '#1F2937', fontWeight: '500' }}>
+                    {formatDate(selectedInvoice.due_date)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Line Items */}
+              <div style={{ marginBottom: '1.5rem' }}>
+                <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#1F2937', marginBottom: '0.75rem' }}>
+                  Line Items
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #E5E7EB', borderRadius: '0.5rem' }}>
+                  <thead style={{ backgroundColor: '#F9FAFB' }}>
+                    <tr>
+                      <th style={{ textAlign: 'left', padding: '0.75rem', fontSize: '0.75rem', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>Description</th>
+                      <th style={{ textAlign: 'center', padding: '0.75rem', fontSize: '0.75rem', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>Qty</th>
+                      <th style={{ textAlign: 'center', padding: '0.75rem', fontSize: '0.75rem', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>UoM</th>
+                      <th style={{ textAlign: 'right', padding: '0.75rem', fontSize: '0.75rem', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>Unit Price</th>
+                      <th style={{ textAlign: 'right', padding: '0.75rem', fontSize: '0.75rem', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase' }}>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedInvoice.line_items?.map((item, index) => (
+                      <tr key={item.id} style={{ borderTop: index > 0 ? '1px solid #F3F4F6' : 'none' }}>
+                        <td style={{ padding: '0.75rem', fontSize: '0.875rem', color: '#1F2937' }}>{item.description}</td>
+                        <td style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.875rem', color: '#6B7280' }}>{item.quantity}</td>
+                        <td style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.875rem', color: '#6B7280' }}>{item.unit_of_measure}</td>
+                        <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.875rem', color: '#6B7280' }}>${item.unit_price.toFixed(2)}</td>
+                        <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.875rem', fontWeight: '600', color: '#1F2937' }}>${item.line_total.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Totals and Payment History */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                {/* Payment History */}
+                {selectedInvoice.payments && selectedInvoice.payments.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#1F2937', marginBottom: '0.75rem' }}>
+                      Payment History
+                    </div>
+                    <div style={{ border: '1px solid #E5E7EB', borderRadius: '0.5rem', padding: '1rem' }}>
+                      {selectedInvoice.payments.map((payment, index) => (
+                        <div key={payment.id} style={{
+                          borderBottom: index < selectedInvoice.payments!.length - 1 ? '1px solid #F3F4F6' : 'none',
+                          paddingBottom: index < selectedInvoice.payments!.length - 1 ? '0.75rem' : 0,
+                          marginBottom: index < selectedInvoice.payments!.length - 1 ? '0.75rem' : 0
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                            <span style={{ fontSize: '0.875rem', color: '#1F2937', fontWeight: '600' }}>
+                              ${payment.amount.toFixed(2)}
+                            </span>
+                            <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>
+                              {formatDate(payment.payment_date)}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#6B7280', textTransform: 'capitalize' }}>
+                            {payment.payment_method.replace('_', ' ')}
+                            {payment.reference_number && ` - ${payment.reference_number}`}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Totals */}
+                <div>
+                  <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#1F2937', marginBottom: '0.75rem' }}>
+                    Summary
+                  </div>
+                  <div style={{ backgroundColor: '#F9FAFB', borderRadius: '0.5rem', padding: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.875rem', color: '#6B7280' }}>Subtotal:</span>
+                      <span style={{ fontSize: '0.875rem', fontWeight: '600', color: '#1F2937' }}>${selectedInvoice.subtotal.toFixed(2)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.875rem', color: '#6B7280' }}>Tax ({(selectedInvoice.tax_rate * 100).toFixed(2)}%):</span>
+                      <span style={{ fontSize: '0.875rem', fontWeight: '600', color: '#1F2937' }}>${selectedInvoice.tax_amount.toFixed(2)}</span>
+                    </div>
+                    {selectedInvoice.discount_amount > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                        <span style={{ fontSize: '0.875rem', color: '#6B7280' }}>Discount:</span>
+                        <span style={{ fontSize: '0.875rem', fontWeight: '600', color: '#DC2626' }}>-${selectedInvoice.discount_amount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: '0.5rem', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '1rem', fontWeight: '700', color: '#1F2937' }}>Total:</span>
+                      <span style={{ fontSize: '1rem', fontWeight: '700', color: '#1F2937' }}>${selectedInvoice.total.toFixed(2)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.875rem', color: '#6B7280' }}>Amount Paid:</span>
+                      <span style={{ fontSize: '0.875rem', fontWeight: '600', color: '#10B981' }}>${selectedInvoice.amount_paid.toFixed(2)}</span>
+                    </div>
+                    <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: '0.5rem', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '1rem', fontWeight: '700', color: '#1F2937' }}>Balance Due:</span>
+                      <span style={{ fontSize: '1rem', fontWeight: '700', color: selectedInvoice.balance_due > 0 ? '#DC2626' : '#10B981' }}>
+                        ${selectedInvoice.balance_due.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              {selectedInvoice.notes && (
+                <div style={{ padding: '1rem', backgroundColor: '#F9FAFB', borderRadius: '0.5rem' }}>
+                  <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#1F2937', marginBottom: '0.5rem' }}>
+                    Notes
+                  </div>
+                  <div style={{ fontSize: '0.875rem', color: '#6B7280' }}>
+                    {selectedInvoice.notes}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ padding: '1.5rem', borderTop: '1px solid #E5E7EB', display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+              {selectedInvoice.status === 'draft' && (
+                <button
+                  onClick={() => handleSendInvoice(selectedInvoice.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.625rem 1.25rem',
+                    backgroundColor: '#3B82F6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '0.5rem',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Send size={16} /> Send Invoice
+                </button>
+              )}
+              {selectedInvoice.balance_due > 0 && selectedInvoice.status !== 'void' && (
+                <button
+                  onClick={() => {
+                    setShowDetailModal(false);
+                    handleOpenPaymentModal(selectedInvoice);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.625rem 1.25rem',
+                    backgroundColor: '#10B981',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '0.5rem',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <CreditCard size={16} /> Record Payment
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      {showPaymentModal && selectedInvoice && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1001,
+          padding: '1rem'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '0.75rem',
+            width: '100%',
+            maxWidth: '500px'
+          }}>
+            <div style={{ padding: '1.5rem', borderBottom: '1px solid #E5E7EB' }}>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#1F2937', margin: 0 }}>
+                Record Payment
+              </h2>
+              <p style={{ color: '#6B7280', marginTop: '0.25rem', margin: 0, fontSize: '0.875rem' }}>
+                {selectedInvoice.invoice_number} - Balance Due: ${selectedInvoice.balance_due.toFixed(2)}
+              </p>
+            </div>
+
+            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* Payment Amount */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
+                  Payment Amount *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={paymentForm.amount}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, amount: parseFloat(e.target.value) || 0 })}
+                  style={{
+                    width: '100%',
+                    padding: '0.625rem 0.75rem',
+                    border: '1px solid #D1D5DB',
+                    borderRadius: '0.5rem',
+                    fontSize: '0.875rem'
+                  }}
+                />
+              </div>
+
+              {/* Payment Method */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
+                  Payment Method *
+                </label>
+                <select
+                  value={paymentForm.payment_method}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, payment_method: e.target.value as any })}
+                  style={{
+                    width: '100%',
+                    padding: '0.625rem 0.75rem',
+                    border: '1px solid #D1D5DB',
+                    borderRadius: '0.5rem',
+                    fontSize: '0.875rem'
+                  }}
+                >
+                  <option value="check">Check</option>
+                  <option value="cash">Cash</option>
+                  <option value="credit_card">Credit Card</option>
+                  <option value="ach">ACH</option>
+                  <option value="online">Online</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              {/* Payment Date */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
+                  Payment Date *
+                </label>
+                <input
+                  type="date"
+                  value={paymentForm.payment_date}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, payment_date: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '0.625rem 0.75rem',
+                    border: '1px solid #D1D5DB',
+                    borderRadius: '0.5rem',
+                    fontSize: '0.875rem'
+                  }}
+                />
+              </div>
+
+              {/* Reference Number */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
+                  Reference Number
+                </label>
+                <input
+                  type="text"
+                  value={paymentForm.reference_number}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, reference_number: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '0.625rem 0.75rem',
+                    border: '1px solid #D1D5DB',
+                    borderRadius: '0.5rem',
+                    fontSize: '0.875rem'
+                  }}
+                  placeholder="Check #, transaction ID, etc."
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#374151', marginBottom: '0.5rem' }}>
+                  Notes
+                </label>
+                <textarea
+                  value={paymentForm.notes}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '0.625rem 0.75rem',
+                    border: '1px solid #D1D5DB',
+                    borderRadius: '0.5rem',
+                    fontSize: '0.875rem',
+                    minHeight: '80px',
+                    resize: 'vertical'
+                  }}
+                  placeholder="Optional payment notes"
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ padding: '1.5rem', borderTop: '1px solid #E5E7EB', display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                style={{
+                  padding: '0.625rem 1.25rem',
+                  backgroundColor: 'white',
+                  color: '#6B7280',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRecordPayment}
+                style={{
+                  padding: '0.625rem 1.25rem',
+                  backgroundColor: '#10B981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  cursor: 'pointer'
+                }}
+              >
+                Record Payment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

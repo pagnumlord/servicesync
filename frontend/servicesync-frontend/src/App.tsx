@@ -34,6 +34,9 @@ import Settings from './components/Settings';
 import Dashboard from './components/Dashboard';
 import Login from './components/Login';
 import Register from './components/Register';
+import PricebookManagement from './components/PricebookManagement';
+import EstimatesManagement from './components/EstimatesManagement';
+import Invoices from './components/Invoices';
 import { useAuth } from './context/AuthContext';
 
 const ServiceSync = () => {
@@ -91,6 +94,9 @@ const ServiceSync = () => {
     { id: 'dispatch', label: 'Dispatch', icon: Menu, color: '#059669' },
     { id: 'queues', label: 'Queues', icon: Grid3X3, color: '#f59e0b' },
     { id: 'purchase-orders', label: 'Purchase Orders', icon: ShoppingCart, color: '#10b981' },
+    { id: 'pricebook', label: 'Pricebook', icon: Wrench, color: '#8b5cf6' },
+    { id: 'estimates', label: 'Estimates', icon: TrendingUp, color: '#06b6d4' },
+    { id: 'invoices', label: 'Invoices', icon: DollarSign, color: '#059669' },
     { id: 'map', label: 'Map', icon: MapPin, color: '#dc2626' },
     { id: 'tasks', label: 'Tasks', icon: CheckSquare, color: '#7c3aed' },
     { id: 'customers', label: 'Customers', icon: Users, color: '#ea580c' },
@@ -752,6 +758,18 @@ const handleNewWorkOrder = async (workOrderData: any) => {
               setShowReceivePODialog(true);
             }}
           />
+        )}
+
+        {currentView === 'pricebook' && (
+          <PricebookManagement />
+        )}
+
+        {currentView === 'estimates' && (
+          <EstimatesManagement />
+        )}
+
+        {currentView === 'invoices' && (
+          <Invoices />
         )}
 
         {currentView === 'customers' && (

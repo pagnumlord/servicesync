@@ -498,3 +498,205 @@ export interface CustomerEquipmentResponse {
   equipment: Equipment[];
   total_count: number;
 }
+
+// ============================================================
+// Pricebook Types
+// ============================================================
+export interface PricebookCategory {
+  id: number;
+  category_name: string;
+  description?: string;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PricebookItem {
+  id: number;
+  category_id: number;
+  category_name?: string;
+  item_code: string;
+  item_name: string;
+  description?: string;
+  item_type: 'labor' | 'material' | 'equipment' | 'service' | 'fee' | 'other';
+  unit_of_measure: string;
+  unit_cost: number;
+  unit_price: number;
+  markup_percent: number;
+  is_taxable: boolean;
+  is_active: boolean;
+  quickbooks_item_id?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================
+// Estimate Types
+// ============================================================
+export interface EstimateLineItem {
+  id: number;
+  estimate_id: number;
+  pricebook_item_id?: number;
+  item_type: 'labor' | 'material' | 'equipment' | 'service' | 'fee' | 'other';
+  description: string;
+  quantity: number;
+  unit_of_measure: string;
+  unit_cost: number;
+  unit_price: number;
+  line_total: number;
+  is_taxable: boolean;
+  display_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Estimate {
+  id: number;
+  estimate_number: string;
+  customer_id: number;
+  customer_name?: string;
+  work_order_id?: number;
+  wo_number?: string;
+  assigned_tech_id?: number;
+  tech_name?: string;
+  status: 'draft' | 'sent' | 'viewed' | 'approved' | 'rejected' | 'expired' | 'converted';
+  title: string;
+  subtotal: number;
+  tax_rate: number;
+  tax_amount: number;
+  discount_amount: number;
+  total: number;
+  valid_until?: string;
+  notes?: string;
+  terms?: string;
+  internal_notes?: string;
+  sent_at?: string;
+  viewed_at?: string;
+  approved_at?: string;
+  rejected_at?: string;
+  rejection_reason?: string;
+  converted_to_invoice_id?: number;
+  created_by_user_id?: number;
+  created_at: string;
+  updated_at: string;
+  line_items?: EstimateLineItem[];
+}
+
+// ============================================================
+// Invoice Types
+// ============================================================
+export interface InvoiceLineItem {
+  id: number;
+  invoice_id: number;
+  work_order_line_item_id?: number;
+  pricebook_item_id?: number;
+  item_type: 'labor' | 'material' | 'equipment' | 'service' | 'fee' | 'other';
+  description: string;
+  quantity: number;
+  unit_of_measure: string;
+  unit_cost: number;
+  unit_price: number;
+  line_total: number;
+  is_taxable: boolean;
+  display_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface InvoicePayment {
+  id: number;
+  invoice_id: number;
+  payment_date: string;
+  amount: number;
+  payment_method: 'check' | 'cash' | 'credit_card' | 'ach' | 'online' | 'other';
+  reference_number?: string;
+  notes?: string;
+  created_by_user_id?: number;
+  created_at: string;
+}
+
+export interface Invoice {
+  id: number;
+  invoice_number: string;
+  customer_id: number;
+  customer_name?: string;
+  work_order_id?: number;
+  wo_number?: string;
+  estimate_id?: number;
+  estimate_number?: string;
+  status: 'draft' | 'sent' | 'viewed' | 'paid' | 'partial' | 'overdue' | 'void';
+  display_status?: string;
+  issue_date: string;
+  due_date: string;
+  payment_terms: string;
+  subtotal: number;
+  tax_rate: number;
+  tax_amount: number;
+  discount_amount: number;
+  total: number;
+  amount_paid: number;
+  balance_due: number;
+  notes?: string;
+  internal_notes?: string;
+  sent_at?: string;
+  viewed_at?: string;
+  paid_at?: string;
+  voided_at?: string;
+  void_reason?: string;
+  quickbooks_invoice_id?: string;
+  quickbooks_synced_at?: string;
+  teams_notification_sent?: boolean;
+  created_by_user_id?: number;
+  created_at: string;
+  updated_at: string;
+  line_items?: InvoiceLineItem[];
+  payments?: InvoicePayment[];
+}
+
+// ============================================================
+// Billing API Response Types
+// ============================================================
+export interface InvoiceStatsResponse {
+  total_outstanding: number;
+  total_paid: number;
+  total_overdue: number;
+  quickbooks_synced_count: number;
+  recent_invoices: Invoice[];
+}
+
+export interface EstimateListResponse {
+  estimates: Estimate[];
+  total_count: number;
+  page: number;
+  limit: number;
+}
+
+export interface InvoiceListResponse {
+  invoices: Invoice[];
+  total_count: number;
+  page: number;
+  limit: number;
+}
+
+// ============================================================
+// Billing Component Props
+// ============================================================
+export interface PricebookManagementProps {
+  onSelectItem?: (item: PricebookItem) => void;
+}
+
+export interface EstimateDetailProps {
+  estimate: Estimate;
+  isOpen: boolean;
+  onClose: () => void;
+  onUpdate?: (updatedEstimate: Estimate) => void;
+}
+
+export interface InvoiceDetailProps {
+  invoice: Invoice;
+  isOpen: boolean;
+  onClose: () => void;
+  onUpdate?: (updatedInvoice: Invoice) => void;
+}

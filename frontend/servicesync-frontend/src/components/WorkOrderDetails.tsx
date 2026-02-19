@@ -82,6 +82,60 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
     'Unscheduled'
   ];
 
+  const handleGenerateEstimate = async () => {
+    if (!window.confirm('Generate an estimate from this work order?')) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/estimates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_id: workOrder.customer_id,
+          work_order_id: workOrder.id,
+          title: `Estimate for ${workOrder.wo_number}`,
+          status: 'draft',
+          subtotal: 0,
+          tax_rate: 0.08,
+          tax_amount: 0,
+          discount_amount: 0,
+          total: 0,
+          valid_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // 30 days from now
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        alert(`Estimate ${data.estimate_number} created successfully!`);
+      } else {
+        throw new Error('Failed to create estimate');
+      }
+    } catch (error) {
+      console.error('Error generating estimate:', error);
+      alert('Failed to generate estimate. Please try again.');
+    }
+  };
+
+  const handleGenerateInvoice = async () => {
+    if (!window.confirm('Generate an invoice from this work order?')) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/invoices/from-work-order/${workOrder.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        alert(`Invoice ${data.invoice.invoice_number} created successfully!`);
+      } else {
+        throw new Error('Failed to create invoice');
+      }
+    } catch (error) {
+      console.error('Error generating invoice:', error);
+      alert('Failed to generate invoice. Please try again.');
+    }
+  };
+
   useEffect(() => {
     setEditedWorkOrder(workOrder);
   }, [workOrder]);
@@ -653,6 +707,49 @@ const WorkOrderDetails: React.FC<WorkOrderDetailsProps> = ({
                   )}
                 </>
               )}
+
+              {/* Billing Actions */}
+              <button
+                onClick={handleGenerateEstimate}
+                style={{
+                  padding: '0.625rem 1.25rem',
+                  backgroundColor: 'white',
+                  color: '#8B5CF6',
+                  border: '2px solid #8B5CF6',
+                  borderRadius: '0.75rem',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}
+                title="Generate Estimate"
+              >
+                <FileText size={16} />
+                Estimate
+              </button>
+
+              <button
+                onClick={handleGenerateInvoice}
+                style={{
+                  padding: '0.625rem 1.25rem',
+                  backgroundColor: 'white',
+                  color: '#059669',
+                  border: '2px solid #059669',
+                  borderRadius: '0.75rem',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}
+                title="Generate Invoice"
+              >
+                <Receipt size={16} />
+                Invoice
+              </button>
 
               <button
                 onClick={onClose}
