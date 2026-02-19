@@ -9004,7 +9004,1042 @@ server.listen(PORT, () => {
   console.log('   📅 Advanced date visibility management');
   console.log('   🟣 Suspended work order carryover tracking');
   console.log('   📊 Enhanced dispatch board with historical data');
+  console.log('   💰 Pricebook, Estimates, and Invoices');
   console.log('');
+});
+
+// ============================================================
+// PRICEBOOK API
+// ============================================================
+
+// GET /api/pricebook/categories
+app.get('/api/pricebook/categories', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT pc.*, COUNT(pi.id) AS item_count
+      FROM pricebook_categories pc
+      LEFT JOIN pricebook_items pi ON pi.category_id = pc.id AND pi.is_active = TRUE
+      GROUP BY pc.id
+      ORDER BY pc.display_order, pc.name
+    `);
+    res.json({ categories: result.rows });
+  } catch (error) {
+    console.error('❌ Get pricebook categories error:', error);
+    res.status(500).json({ error: 'Failed to get pricebook categories' });
+  }
+});
+
+// POST /api/pricebook/categories
+app.post('/api/pricebook/categories', async (req, res) => {
+  try {
+    const { name, description, color, icon, display_order } = req.body;
+    const result = await pool.query(`
+      INSERT INTO pricebook_categories (name, description, color, icon, display_order)
+      VALUES ($1, $2, $3, $4, $5) RETURNING *
+    `, [name, description, color, icon, display_order || 0]);
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Create pricebook category error:', error);
+    res.status(500).json({ error: 'Failed to create category' });
+  }
+});
+
+// GET /api/pricebook/items
+app.get('/api/pricebook/items', async (req, res) => {
+  try {
+    const { category_id, item_type, search, active_only = 'true' } = req.query;
+
+    let where = [];
+    let params = [];
+    let idx = 1;
+
+    if (active_only === 'true') { where.push(`pi.is_active = TRUE`); }
+    if (category_id) { where.push(`pi.category_id = $${idx++}`); params.push(category_id); }
+    if (item_type)   { where.push(`pi.item_type = $${idx++}`);   params.push(item_type); }
+    if (search) {
+      where.push(`(pi.name ILIKE $${idx} OR pi.description ILIKE $${idx} OR pi.item_code ILIKE $${idx})`);
+      params.push(`%${search}%`); idx++;
+    }
+
+    const whereStr = where.length ? 'WHERE ' + where.join(' AND ') : '';
+
+    const result = await pool.query(`
+      SELECT pi.*, pc.name AS category_name, pc.color AS category_color
+      FROM pricebook_items pi
+      LEFT JOIN pricebook_categories pc ON pi.category_id = pc.id
+      ${whereStr}
+      ORDER BY pc.display_order, pi.name
+    `, params);
+
+    res.json({ items: result.rows, count: result.rows.length });
+  } catch (error) {
+    console.error('❌ Get pricebook items error:', error);
+    res.status(500).json({ error: 'Failed to get pricebook items' });
+  }
+});
+
+// GET /api/pricebook/items/:id
+app.get('/api/pricebook/items/:id', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT pi.*, pc.name AS category_name
+      FROM pricebook_items pi
+      LEFT JOIN pricebook_categories pc ON pi.category_id = pc.id
+      WHERE pi.id = $1
+    `, [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Item not found' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Get pricebook item error:', error);
+    res.status(500).json({ error: 'Failed to get pricebook item' });
+  }
+});
+
+// POST /api/pricebook/items
+app.post('/api/pricebook/items', async (req, res) => {
+  try {
+    const {
+      category_id, item_code, name, description, item_type,
+      unit_of_measure, unit_cost, unit_price, markup_percent,
+      is_taxable, manufacturer, part_number, notes
+    } = req.body;
+
+    if (!name) return res.status(400).json({ error: 'Name is required' });
+
+    const result = await pool.query(`
+      INSERT INTO pricebook_items
+        (category_id, item_code, name, description, item_type, unit_of_measure,
+         unit_cost, unit_price, markup_percent, is_taxable, manufacturer, part_number, notes)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      RETURNING *
+    `, [category_id, item_code, name, description, item_type || 'service',
+        unit_of_measure || 'each', unit_cost || 0, unit_price || 0,
+        markup_percent, is_taxable !== false, manufacturer, part_number, notes]);
+
+    console.log(`✅ Pricebook item created: ${name}`);
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Create pricebook item error:', error);
+    res.status(500).json({ error: 'Failed to create pricebook item' });
+  }
+});
+
+// PUT /api/pricebook/items/:id
+app.put('/api/pricebook/items/:id', async (req, res) => {
+  try {
+    const {
+      category_id, item_code, name, description, item_type,
+      unit_of_measure, unit_cost, unit_price, markup_percent,
+      is_taxable, is_active, manufacturer, part_number, notes
+    } = req.body;
+
+    const result = await pool.query(`
+      UPDATE pricebook_items SET
+        category_id=$1, item_code=$2, name=$3, description=$4, item_type=$5,
+        unit_of_measure=$6, unit_cost=$7, unit_price=$8, markup_percent=$9,
+        is_taxable=$10, is_active=$11, manufacturer=$12, part_number=$13,
+        notes=$14, updated_at=NOW()
+      WHERE id=$15 RETURNING *
+    `, [category_id, item_code, name, description, item_type,
+        unit_of_measure, unit_cost, unit_price, markup_percent,
+        is_taxable, is_active !== false, manufacturer, part_number, notes,
+        req.params.id]);
+
+    if (!result.rows.length) return res.status(404).json({ error: 'Item not found' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Update pricebook item error:', error);
+    res.status(500).json({ error: 'Failed to update pricebook item' });
+  }
+});
+
+// DELETE /api/pricebook/items/:id  (soft delete)
+app.delete('/api/pricebook/items/:id', async (req, res) => {
+  try {
+    await pool.query(`UPDATE pricebook_items SET is_active=FALSE, updated_at=NOW() WHERE id=$1`, [req.params.id]);
+    res.json({ message: 'Item deactivated' });
+  } catch (error) {
+    console.error('❌ Delete pricebook item error:', error);
+    res.status(500).json({ error: 'Failed to deactivate item' });
+  }
+});
+
+// ============================================================
+// ESTIMATES API
+// ============================================================
+
+// GET /api/estimates
+app.get('/api/estimates', async (req, res) => {
+  try {
+    const { customer_id, status, search, page = 1, limit = 50 } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    let where = [];
+    let params = [];
+    let idx = 1;
+
+    if (customer_id) { where.push(`e.customer_id = $${idx++}`); params.push(customer_id); }
+    if (status)      { where.push(`e.status = $${idx++}`);       params.push(status); }
+    if (search) {
+      where.push(`(e.estimate_number ILIKE $${idx} OR c.name ILIKE $${idx} OR e.title ILIKE $${idx})`);
+      params.push(`%${search}%`); idx++;
+    }
+
+    const whereStr = where.length ? 'WHERE ' + where.join(' AND ') : '';
+    params.push(parseInt(limit), offset);
+
+    const result = await pool.query(`
+      SELECT e.*, c.name AS customer_name, c.service_city,
+             (SELECT COUNT(*) FROM estimate_line_items WHERE estimate_id = e.id) AS line_item_count
+      FROM estimates e
+      JOIN customers c ON e.customer_id = c.id
+      ${whereStr}
+      ORDER BY e.created_at DESC
+      LIMIT $${idx++} OFFSET $${idx}
+    `, params);
+
+    const countParams = params.slice(0, -2);
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM estimates e JOIN customers c ON e.customer_id = c.id ${whereStr}`,
+      countParams
+    );
+
+    res.json({ estimates: result.rows, total: parseInt(countResult.rows[0].count) });
+  } catch (error) {
+    console.error('❌ Get estimates error:', error);
+    res.status(500).json({ error: 'Failed to get estimates' });
+  }
+});
+
+// GET /api/estimates/:id
+app.get('/api/estimates/:id', async (req, res) => {
+  try {
+    const estimateResult = await pool.query(`
+      SELECT e.*,
+             c.name AS customer_name, c.service_city, c.service_address,
+             c.service_state, c.service_zip, c.phone, c.email,
+             wo.wo_number,
+             t.first_name AS tech_first_name, t.last_name AS tech_last_name
+      FROM estimates e
+      JOIN customers c ON e.customer_id = c.id
+      LEFT JOIN work_orders wo ON e.work_order_id = wo.id
+      LEFT JOIN technicians t ON e.assigned_tech_id = t.id
+      WHERE e.id = $1
+    `, [req.params.id]);
+
+    if (!estimateResult.rows.length) return res.status(404).json({ error: 'Estimate not found' });
+
+    const lineItems = await pool.query(`
+      SELECT eli.*, pi.name AS pricebook_name
+      FROM estimate_line_items eli
+      LEFT JOIN pricebook_items pi ON eli.pricebook_item_id = pi.id
+      WHERE eli.estimate_id = $1
+      ORDER BY eli.sort_order, eli.id
+    `, [req.params.id]);
+
+    res.json({ ...estimateResult.rows[0], line_items: lineItems.rows });
+  } catch (error) {
+    console.error('❌ Get estimate error:', error);
+    res.status(500).json({ error: 'Failed to get estimate' });
+  }
+});
+
+// POST /api/estimates
+app.post('/api/estimates', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const {
+      customer_id, work_order_id, assigned_tech_id, title, description,
+      valid_until, tax_rate, discount_amount, notes, internal_notes, terms,
+      line_items = []
+    } = req.body;
+
+    if (!customer_id) return res.status(400).json({ error: 'customer_id is required' });
+
+    // Default valid_until to 30 days from now
+    const validDate = valid_until || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+
+    const estResult = await client.query(`
+      INSERT INTO estimates
+        (customer_id, work_order_id, assigned_tech_id, title, description,
+         valid_until, tax_rate, discount_amount, notes, internal_notes, terms)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      RETURNING *
+    `, [customer_id, work_order_id, assigned_tech_id, title, description,
+        validDate, tax_rate || 0, discount_amount || 0, notes, internal_notes, terms]);
+
+    const estimate = estResult.rows[0];
+
+    // Insert line items
+    let subtotal = 0;
+    for (let i = 0; i < line_items.length; i++) {
+      const item = line_items[i];
+      const lineTotal = (parseFloat(item.quantity) || 1) * (parseFloat(item.unit_price) || 0);
+      subtotal += lineTotal;
+
+      await client.query(`
+        INSERT INTO estimate_line_items
+          (estimate_id, pricebook_item_id, sort_order, item_type, description,
+           quantity, unit_of_measure, unit_cost, unit_price, line_total, is_taxable, notes)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      `, [estimate.id, item.pricebook_item_id, i, item.item_type || 'service',
+          item.description, item.quantity || 1, item.unit_of_measure || 'each',
+          item.unit_cost || 0, item.unit_price || 0, lineTotal,
+          item.is_taxable !== false, item.notes]);
+    }
+
+    // Recalculate totals
+    const taxAmt = subtotal * ((parseFloat(tax_rate) || 0) / 100);
+    const total  = subtotal + taxAmt - (parseFloat(discount_amount) || 0);
+
+    const updated = await client.query(`
+      UPDATE estimates SET subtotal=$1, tax_amount=$2, total=$3, updated_at=NOW()
+      WHERE id=$4 RETURNING *
+    `, [subtotal, taxAmt, total, estimate.id]);
+
+    await client.query('COMMIT');
+    console.log(`✅ Estimate created: ${updated.rows[0].estimate_number}`);
+    res.status(201).json(updated.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Create estimate error:', error);
+    res.status(500).json({ error: 'Failed to create estimate' });
+  } finally {
+    client.release();
+  }
+});
+
+// PUT /api/estimates/:id
+app.put('/api/estimates/:id', async (req, res) => {
+  try {
+    const {
+      title, description, valid_until, tax_rate,
+      discount_amount, notes, internal_notes, terms, status
+    } = req.body;
+
+    const result = await pool.query(`
+      UPDATE estimates SET
+        title=$1, description=$2, valid_until=$3, tax_rate=$4,
+        discount_amount=$5, notes=$6, internal_notes=$7, terms=$8,
+        status=COALESCE($9, status), updated_at=NOW()
+      WHERE id=$10 RETURNING *
+    `, [title, description, valid_until, tax_rate, discount_amount,
+        notes, internal_notes, terms, status, req.params.id]);
+
+    if (!result.rows.length) return res.status(404).json({ error: 'Estimate not found' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Update estimate error:', error);
+    res.status(500).json({ error: 'Failed to update estimate' });
+  }
+});
+
+// POST /api/estimates/:id/line-items
+app.post('/api/estimates/:id/line-items', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { pricebook_item_id, item_type, description, quantity, unit_of_measure,
+            unit_cost, unit_price, is_taxable, notes } = req.body;
+
+    const lineTotal = (parseFloat(quantity) || 1) * (parseFloat(unit_price) || 0);
+    const sortResult = await client.query(
+      `SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM estimate_line_items WHERE estimate_id=$1`,
+      [req.params.id]
+    );
+
+    const item = await client.query(`
+      INSERT INTO estimate_line_items
+        (estimate_id, pricebook_item_id, sort_order, item_type, description,
+         quantity, unit_of_measure, unit_cost, unit_price, line_total, is_taxable, notes)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *
+    `, [req.params.id, pricebook_item_id, sortResult.rows[0].next,
+        item_type || 'service', description, quantity || 1,
+        unit_of_measure || 'each', unit_cost || 0, unit_price || 0,
+        lineTotal, is_taxable !== false, notes]);
+
+    // Recalculate estimate totals
+    const totals = await client.query(`
+      SELECT SUM(line_total) AS subtotal FROM estimate_line_items WHERE estimate_id=$1
+    `, [req.params.id]);
+    const est = await client.query(`SELECT tax_rate, discount_amount FROM estimates WHERE id=$1`, [req.params.id]);
+    const sub = parseFloat(totals.rows[0].subtotal) || 0;
+    const taxAmt = sub * ((parseFloat(est.rows[0].tax_rate) || 0) / 100);
+    const total  = sub + taxAmt - (parseFloat(est.rows[0].discount_amount) || 0);
+    await client.query(`UPDATE estimates SET subtotal=$1, tax_amount=$2, total=$3, updated_at=NOW() WHERE id=$4`,
+      [sub, taxAmt, total, req.params.id]);
+
+    await client.query('COMMIT');
+    res.status(201).json(item.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Add estimate line item error:', error);
+    res.status(500).json({ error: 'Failed to add line item' });
+  } finally {
+    client.release();
+  }
+});
+
+// DELETE /api/estimates/:id/line-items/:itemId
+app.delete('/api/estimates/:id/line-items/:itemId', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`DELETE FROM estimate_line_items WHERE id=$1 AND estimate_id=$2`, [req.params.itemId, req.params.id]);
+
+    const totals = await client.query(`SELECT SUM(line_total) AS subtotal FROM estimate_line_items WHERE estimate_id=$1`, [req.params.id]);
+    const est    = await client.query(`SELECT tax_rate, discount_amount FROM estimates WHERE id=$1`, [req.params.id]);
+    const sub    = parseFloat(totals.rows[0].subtotal) || 0;
+    const taxAmt = sub * ((parseFloat(est.rows[0].tax_rate) || 0) / 100);
+    const total  = sub + taxAmt - (parseFloat(est.rows[0].discount_amount) || 0);
+    await client.query(`UPDATE estimates SET subtotal=$1, tax_amount=$2, total=$3, updated_at=NOW() WHERE id=$4`, [sub, taxAmt, total, req.params.id]);
+
+    await client.query('COMMIT');
+    res.json({ message: 'Line item deleted' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Delete estimate line item error:', error);
+    res.status(500).json({ error: 'Failed to delete line item' });
+  } finally {
+    client.release();
+  }
+});
+
+// POST /api/estimates/:id/send
+app.post('/api/estimates/:id/send', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      UPDATE estimates SET status='sent', sent_at=NOW(), updated_at=NOW()
+      WHERE id=$1 AND status='draft' RETURNING *
+    `, [req.params.id]);
+    if (!result.rows.length) return res.status(400).json({ error: 'Estimate not in draft status' });
+    console.log(`📧 Estimate ${result.rows[0].estimate_number} sent`);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Send estimate error:', error);
+    res.status(500).json({ error: 'Failed to send estimate' });
+  }
+});
+
+// POST /api/estimates/:id/approve
+app.post('/api/estimates/:id/approve', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      UPDATE estimates SET status='approved', approved_at=NOW(), updated_at=NOW()
+      WHERE id=$1 RETURNING *
+    `, [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Estimate not found' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Approve estimate error:', error);
+    res.status(500).json({ error: 'Failed to approve estimate' });
+  }
+});
+
+// POST /api/estimates/:id/reject
+app.post('/api/estimates/:id/reject', async (req, res) => {
+  try {
+    const { reason } = req.body;
+    const result = await pool.query(`
+      UPDATE estimates SET status='rejected', rejected_at=NOW(), internal_notes=CONCAT(COALESCE(internal_notes,''), $2), updated_at=NOW()
+      WHERE id=$1 RETURNING *
+    `, [req.params.id, reason ? `\nRejection reason: ${reason}` : '']);
+    if (!result.rows.length) return res.status(404).json({ error: 'Estimate not found' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Reject estimate error:', error);
+    res.status(500).json({ error: 'Failed to reject estimate' });
+  }
+});
+
+// POST /api/estimates/:id/convert-to-invoice
+// Creates an invoice from an approved estimate
+app.post('/api/estimates/:id/convert-to-invoice', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const estResult = await client.query(`
+      SELECT e.*, c.name AS customer_name FROM estimates e
+      JOIN customers c ON e.customer_id = c.id WHERE e.id=$1
+    `, [req.params.id]);
+    if (!estResult.rows.length) return res.status(404).json({ error: 'Estimate not found' });
+
+    const est = estResult.rows[0];
+    const lineItems = await client.query(
+      `SELECT * FROM estimate_line_items WHERE estimate_id=$1 ORDER BY sort_order`, [est.id]
+    );
+
+    // Calculate due date based on net30
+    const dueDate = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+
+    const invResult = await client.query(`
+      INSERT INTO invoices
+        (customer_id, work_order_id, estimate_id, status, title, due_date,
+         payment_terms, subtotal, tax_rate, tax_amount, discount_amount, total, balance_due, notes, terms)
+      VALUES ($1,$2,$3,'draft',$4,$5,'net30',$6,$7,$8,$9,$10,$10,$11,$12)
+      RETURNING *
+    `, [est.customer_id, est.work_order_id, est.id,
+        est.title || `Invoice from ${est.estimate_number}`, dueDate,
+        est.subtotal, est.tax_rate, est.tax_amount, est.discount_amount, est.total,
+        est.notes, est.terms]);
+
+    const invoice = invResult.rows[0];
+
+    for (let i = 0; i < lineItems.rows.length; i++) {
+      const item = lineItems.rows[i];
+      await client.query(`
+        INSERT INTO invoice_line_items
+          (invoice_id, pricebook_item_id, sort_order, item_type, description,
+           quantity, unit_of_measure, unit_cost, unit_price, line_total, is_taxable, notes)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      `, [invoice.id, item.pricebook_item_id, i, item.item_type, item.description,
+          item.quantity, item.unit_of_measure, item.unit_cost, item.unit_price,
+          item.line_total, item.is_taxable, item.notes]);
+    }
+
+    // Mark estimate as converted
+    await client.query(`
+      UPDATE estimates SET status='converted', converted_at=NOW(), updated_at=NOW() WHERE id=$1
+    `, [est.id]);
+
+    await client.query('COMMIT');
+    console.log(`✅ Invoice ${invoice.invoice_number} created from estimate ${est.estimate_number}`);
+    res.status(201).json(invoice);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Convert estimate to invoice error:', error);
+    res.status(500).json({ error: 'Failed to convert estimate to invoice' });
+  } finally {
+    client.release();
+  }
+});
+
+// ============================================================
+// INVOICES API
+// ============================================================
+
+// GET /api/invoices
+app.get('/api/invoices', async (req, res) => {
+  try {
+    const { customer_id, status, search, page = 1, limit = 50 } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    let where = [];
+    let params = [];
+    let idx = 1;
+
+    if (customer_id) { where.push(`i.customer_id = $${idx++}`); params.push(customer_id); }
+    if (status)      { where.push(`i.status = $${idx++}`);       params.push(status); }
+    if (search) {
+      where.push(`(i.invoice_number ILIKE $${idx} OR c.name ILIKE $${idx} OR i.title ILIKE $${idx})`);
+      params.push(`%${search}%`); idx++;
+    }
+
+    const whereStr = where.length ? 'WHERE ' + where.join(' AND ') : '';
+    params.push(parseInt(limit), offset);
+
+    const result = await pool.query(`
+      SELECT i.*, c.name AS customer_name, c.service_city,
+             wo.wo_number,
+             CASE WHEN i.due_date < CURRENT_DATE AND i.balance_due > 0 THEN 'overdue' ELSE i.status END AS display_status,
+             GREATEST(0, CURRENT_DATE - i.due_date) AS days_overdue
+      FROM invoices i
+      JOIN customers c ON i.customer_id = c.id
+      LEFT JOIN work_orders wo ON i.work_order_id = wo.id
+      ${whereStr}
+      ORDER BY i.created_at DESC
+      LIMIT $${idx++} OFFSET $${idx}
+    `, params);
+
+    const countParams = params.slice(0, -2);
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM invoices i JOIN customers c ON i.customer_id = c.id ${whereStr}`,
+      countParams
+    );
+
+    res.json({ invoices: result.rows, total: parseInt(countResult.rows[0].count) });
+  } catch (error) {
+    console.error('❌ Get invoices error:', error);
+    res.status(500).json({ error: 'Failed to get invoices' });
+  }
+});
+
+// GET /api/invoices/stats
+app.get('/api/invoices/stats', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE status NOT IN ('void'))                             AS total_invoices,
+        COALESCE(SUM(total) FILTER (WHERE status NOT IN ('void')), 0)             AS total_billed,
+        COALESCE(SUM(amount_paid) FILTER (WHERE status NOT IN ('void')), 0)       AS total_collected,
+        COALESCE(SUM(balance_due) FILTER (WHERE status NOT IN ('void','paid')), 0) AS total_outstanding,
+        COALESCE(SUM(balance_due) FILTER (WHERE due_date < CURRENT_DATE AND balance_due > 0 AND status NOT IN ('void','paid')), 0) AS total_overdue,
+        COUNT(*) FILTER (WHERE status = 'paid')                                    AS paid_count,
+        COUNT(*) FILTER (WHERE due_date < CURRENT_DATE AND balance_due > 0 AND status NOT IN ('void','paid')) AS overdue_count,
+        COUNT(*) FILTER (WHERE status = 'draft')                                   AS draft_count
+      FROM invoices
+    `);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Invoice stats error:', error);
+    res.status(500).json({ error: 'Failed to get invoice stats' });
+  }
+});
+
+// GET /api/invoices/:id
+app.get('/api/invoices/:id', async (req, res) => {
+  try {
+    const invResult = await pool.query(`
+      SELECT i.*,
+             c.name AS customer_name, c.service_address, c.service_city,
+             c.service_state, c.service_zip, c.phone, c.email,
+             wo.wo_number,
+             e.estimate_number,
+             CASE WHEN i.due_date < CURRENT_DATE AND i.balance_due > 0 THEN 'overdue' ELSE i.status END AS display_status,
+             GREATEST(0, CURRENT_DATE - i.due_date) AS days_overdue
+      FROM invoices i
+      JOIN customers c ON i.customer_id = c.id
+      LEFT JOIN work_orders wo ON i.work_order_id = wo.id
+      LEFT JOIN estimates e ON i.estimate_id = e.id
+      WHERE i.id = $1
+    `, [req.params.id]);
+
+    if (!invResult.rows.length) return res.status(404).json({ error: 'Invoice not found' });
+
+    const [lineItems, payments] = await Promise.all([
+      pool.query(`
+        SELECT ili.*, pi.name AS pricebook_name
+        FROM invoice_line_items ili
+        LEFT JOIN pricebook_items pi ON ili.pricebook_item_id = pi.id
+        WHERE ili.invoice_id = $1 ORDER BY ili.sort_order, ili.id
+      `, [req.params.id]),
+      pool.query(`
+        SELECT * FROM invoice_payments WHERE invoice_id=$1 ORDER BY payment_date DESC
+      `, [req.params.id])
+    ]);
+
+    res.json({ ...invResult.rows[0], line_items: lineItems.rows, payments: payments.rows });
+  } catch (error) {
+    console.error('❌ Get invoice error:', error);
+    res.status(500).json({ error: 'Failed to get invoice' });
+  }
+});
+
+// POST /api/invoices
+app.post('/api/invoices', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const {
+      customer_id, work_order_id, estimate_id, title, due_date,
+      payment_terms, tax_rate, discount_amount, notes, internal_notes, terms,
+      line_items = []
+    } = req.body;
+
+    if (!customer_id) return res.status(400).json({ error: 'customer_id is required' });
+
+    const calcDue = due_date || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+
+    const invResult = await client.query(`
+      INSERT INTO invoices
+        (customer_id, work_order_id, estimate_id, title, due_date, payment_terms,
+         tax_rate, discount_amount, notes, internal_notes, terms)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *
+    `, [customer_id, work_order_id, estimate_id, title, calcDue,
+        payment_terms || 'net30', tax_rate || 0, discount_amount || 0,
+        notes, internal_notes, terms]);
+
+    const invoice = invResult.rows[0];
+
+    let subtotal = 0;
+    for (let i = 0; i < line_items.length; i++) {
+      const item = line_items[i];
+      const lineTotal = (parseFloat(item.quantity) || 1) * (parseFloat(item.unit_price) || 0);
+      subtotal += lineTotal;
+      await client.query(`
+        INSERT INTO invoice_line_items
+          (invoice_id, pricebook_item_id, sort_order, item_type, description,
+           quantity, unit_of_measure, unit_cost, unit_price, line_total, is_taxable, notes)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      `, [invoice.id, item.pricebook_item_id, i, item.item_type || 'service',
+          item.description, item.quantity || 1, item.unit_of_measure || 'each',
+          item.unit_cost || 0, item.unit_price || 0, lineTotal,
+          item.is_taxable !== false, item.notes]);
+    }
+
+    const taxAmt = subtotal * ((parseFloat(tax_rate) || 0) / 100);
+    const total  = subtotal + taxAmt - (parseFloat(discount_amount) || 0);
+
+    const updated = await client.query(`
+      UPDATE invoices SET subtotal=$1, tax_amount=$2, total=$3, balance_due=$3, updated_at=NOW()
+      WHERE id=$4 RETURNING *
+    `, [subtotal, taxAmt, total, invoice.id]);
+
+    await client.query('COMMIT');
+    console.log(`✅ Invoice created: ${updated.rows[0].invoice_number}`);
+    res.status(201).json(updated.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Create invoice error:', error);
+    res.status(500).json({ error: 'Failed to create invoice' });
+  } finally {
+    client.release();
+  }
+});
+
+// POST /api/invoices/from-work-order/:woId
+// Auto-generates invoice from a work order's line items
+app.post('/api/invoices/from-work-order/:woId', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const woResult = await client.query(`
+      SELECT wo.*, c.name AS customer_name FROM work_orders wo
+      JOIN customers c ON wo.customer_id = c.id WHERE wo.id=$1
+    `, [req.params.woId]);
+    if (!woResult.rows.length) return res.status(404).json({ error: 'Work order not found' });
+
+    const wo = woResult.rows[0];
+    const lineItems = await client.query(`
+      SELECT * FROM work_order_line_items
+      WHERE work_order_id=$1 AND is_billable=TRUE ORDER BY created_at
+    `, [req.params.woId]);
+
+    const dueDate = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+
+    let subtotal = 0;
+    lineItems.rows.forEach(item => { subtotal += parseFloat(item.line_total) || 0; });
+    const total = subtotal;
+
+    const invResult = await client.query(`
+      INSERT INTO invoices
+        (customer_id, work_order_id, title, due_date, payment_terms,
+         subtotal, tax_rate, tax_amount, total, balance_due)
+      VALUES ($1,$2,$3,$4,'net30',$5,0,0,$5,$5) RETURNING *
+    `, [wo.customer_id, wo.id,
+        `Invoice for WO ${wo.wo_number} - ${wo.customer_name}`,
+        dueDate, subtotal]);
+
+    const invoice = invResult.rows[0];
+
+    for (let i = 0; i < lineItems.rows.length; i++) {
+      const item = lineItems.rows[i];
+      await client.query(`
+        INSERT INTO invoice_line_items
+          (invoice_id, work_order_line_item_id, sort_order, item_type,
+           description, quantity, unit_of_measure, unit_cost, unit_price, line_total, is_taxable)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      `, [invoice.id, item.id, i, item.item_type,
+          item.description, item.quantity, item.unit_of_measure,
+          item.unit_cost, item.unit_price, item.line_total, item.is_taxable]);
+    }
+
+    await client.query('COMMIT');
+    console.log(`✅ Invoice ${invoice.invoice_number} generated from WO ${wo.wo_number}`);
+    res.status(201).json(invoice);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Invoice from work order error:', error);
+    res.status(500).json({ error: 'Failed to create invoice from work order' });
+  } finally {
+    client.release();
+  }
+});
+
+// POST /api/invoices/:id/line-items
+app.post('/api/invoices/:id/line-items', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { pricebook_item_id, item_type, description, quantity,
+            unit_of_measure, unit_cost, unit_price, is_taxable, notes } = req.body;
+
+    const lineTotal = (parseFloat(quantity) || 1) * (parseFloat(unit_price) || 0);
+    const sortResult = await client.query(
+      `SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM invoice_line_items WHERE invoice_id=$1`,
+      [req.params.id]
+    );
+
+    const item = await client.query(`
+      INSERT INTO invoice_line_items
+        (invoice_id, pricebook_item_id, sort_order, item_type, description,
+         quantity, unit_of_measure, unit_cost, unit_price, line_total, is_taxable, notes)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *
+    `, [req.params.id, pricebook_item_id, sortResult.rows[0].next,
+        item_type || 'service', description, quantity || 1,
+        unit_of_measure || 'each', unit_cost || 0, unit_price || 0,
+        lineTotal, is_taxable !== false, notes]);
+
+    // Recalculate totals
+    const totals = await client.query(`SELECT SUM(line_total) AS subtotal FROM invoice_line_items WHERE invoice_id=$1`, [req.params.id]);
+    const inv    = await client.query(`SELECT tax_rate, discount_amount FROM invoices WHERE id=$1`, [req.params.id]);
+    const sub    = parseFloat(totals.rows[0].subtotal) || 0;
+    const taxAmt = sub * ((parseFloat(inv.rows[0].tax_rate) || 0) / 100);
+    const total  = sub + taxAmt - (parseFloat(inv.rows[0].discount_amount) || 0);
+    const paidResult = await client.query(`SELECT COALESCE(SUM(amount),0) AS paid FROM invoice_payments WHERE invoice_id=$1`, [req.params.id]);
+    const paid   = parseFloat(paidResult.rows[0].paid) || 0;
+    await client.query(`UPDATE invoices SET subtotal=$1, tax_amount=$2, total=$3, balance_due=$4, updated_at=NOW() WHERE id=$5`,
+      [sub, taxAmt, total, total - paid, req.params.id]);
+
+    await client.query('COMMIT');
+    res.status(201).json(item.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Add invoice line item error:', error);
+    res.status(500).json({ error: 'Failed to add line item' });
+  } finally {
+    client.release();
+  }
+});
+
+// DELETE /api/invoices/:id/line-items/:itemId
+app.delete('/api/invoices/:id/line-items/:itemId', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`DELETE FROM invoice_line_items WHERE id=$1 AND invoice_id=$2`, [req.params.itemId, req.params.id]);
+
+    const totals = await client.query(`SELECT SUM(line_total) AS subtotal FROM invoice_line_items WHERE invoice_id=$1`, [req.params.id]);
+    const inv    = await client.query(`SELECT tax_rate, discount_amount FROM invoices WHERE id=$1`, [req.params.id]);
+    const sub    = parseFloat(totals.rows[0].subtotal) || 0;
+    const taxAmt = sub * ((parseFloat(inv.rows[0].tax_rate) || 0) / 100);
+    const total  = sub + taxAmt - (parseFloat(inv.rows[0].discount_amount) || 0);
+    const paidResult = await client.query(`SELECT COALESCE(SUM(amount),0) AS paid FROM invoice_payments WHERE invoice_id=$1`, [req.params.id]);
+    const paid   = parseFloat(paidResult.rows[0].paid) || 0;
+    await client.query(`UPDATE invoices SET subtotal=$1, tax_amount=$2, total=$3, balance_due=$4, updated_at=NOW() WHERE id=$5`,
+      [sub, taxAmt, total, total - paid, req.params.id]);
+
+    await client.query('COMMIT');
+    res.json({ message: 'Line item deleted' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Delete invoice line item error:', error);
+    res.status(500).json({ error: 'Failed to delete line item' });
+  } finally {
+    client.release();
+  }
+});
+
+// POST /api/invoices/:id/send
+app.post('/api/invoices/:id/send', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      UPDATE invoices SET status='sent', sent_at=NOW(), updated_at=NOW()
+      WHERE id=$1 AND status='draft' RETURNING *
+    `, [req.params.id]);
+    if (!result.rows.length) return res.status(400).json({ error: 'Invoice not in draft status' });
+    console.log(`📧 Invoice ${result.rows[0].invoice_number} sent`);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Send invoice error:', error);
+    res.status(500).json({ error: 'Failed to send invoice' });
+  }
+});
+
+// POST /api/invoices/:id/payments  — record a payment
+app.post('/api/invoices/:id/payments', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { payment_date, amount, payment_method, reference_number, notes } = req.body;
+
+    if (!amount || parseFloat(amount) <= 0) return res.status(400).json({ error: 'Valid payment amount is required' });
+
+    const payment = await client.query(`
+      INSERT INTO invoice_payments (invoice_id, payment_date, amount, payment_method, reference_number, notes)
+      VALUES ($1,$2,$3,$4,$5,$6) RETURNING *
+    `, [req.params.id, payment_date || new Date().toISOString().split('T')[0],
+        amount, payment_method || 'check', reference_number, notes]);
+
+    // Recalculate balance
+    const paidResult = await client.query(`SELECT COALESCE(SUM(amount),0) AS paid FROM invoice_payments WHERE invoice_id=$1`, [req.params.id]);
+    const totalPaid  = parseFloat(paidResult.rows[0].paid) || 0;
+    const invResult  = await client.query(`SELECT total FROM invoices WHERE id=$1`, [req.params.id]);
+    const invoiceTotal = parseFloat(invResult.rows[0].total) || 0;
+    const balanceDue = Math.max(0, invoiceTotal - totalPaid);
+    const newStatus  = balanceDue <= 0 ? 'paid' : 'partial';
+    const paidAt     = balanceDue <= 0 ? 'NOW()' : 'NULL';
+
+    await client.query(`
+      UPDATE invoices SET amount_paid=$1, balance_due=$2, status=$3,
+        paid_at=${paidAt}, updated_at=NOW()
+      WHERE id=$4
+    `, [totalPaid, balanceDue, newStatus, req.params.id]);
+
+    await client.query('COMMIT');
+    console.log(`💰 Payment of $${amount} recorded for invoice ${req.params.id}. Balance: $${balanceDue}`);
+    res.status(201).json({ payment: payment.rows[0], balance_due: balanceDue, status: newStatus });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Record payment error:', error);
+    res.status(500).json({ error: 'Failed to record payment' });
+  } finally {
+    client.release();
+  }
+});
+
+// GET /api/invoices/:id/payments
+app.get('/api/invoices/:id/payments', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT * FROM invoice_payments WHERE invoice_id=$1 ORDER BY payment_date DESC
+    `, [req.params.id]);
+    res.json({ payments: result.rows });
+  } catch (error) {
+    console.error('❌ Get payments error:', error);
+    res.status(500).json({ error: 'Failed to get payments' });
+  }
+});
+
+// POST /api/invoices/:id/void
+app.post('/api/invoices/:id/void', async (req, res) => {
+  try {
+    const { reason } = req.body;
+    const result = await pool.query(`
+      UPDATE invoices SET status='void', voided_at=NOW(), void_reason=$2, updated_at=NOW()
+      WHERE id=$1 AND status NOT IN ('void') RETURNING *
+    `, [req.params.id, reason || 'Voided by user']);
+    if (!result.rows.length) return res.status(400).json({ error: 'Invoice already voided or not found' });
+    console.log(`🚫 Invoice ${result.rows[0].invoice_number} voided`);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Void invoice error:', error);
+    res.status(500).json({ error: 'Failed to void invoice' });
+  }
+});
+
+// PUT /api/invoices/:id
+app.put('/api/invoices/:id', async (req, res) => {
+  try {
+    const {
+      title, due_date, payment_terms, tax_rate,
+      discount_amount, notes, internal_notes, terms
+    } = req.body;
+
+    const result = await pool.query(`
+      UPDATE invoices SET
+        title=$1, due_date=$2, payment_terms=$3, tax_rate=$4,
+        discount_amount=$5, notes=$6, internal_notes=$7, terms=$8, updated_at=NOW()
+      WHERE id=$9 RETURNING *
+    `, [title, due_date, payment_terms, tax_rate, discount_amount,
+        notes, internal_notes, terms, req.params.id]);
+
+    if (!result.rows.length) return res.status(404).json({ error: 'Invoice not found' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Update invoice error:', error);
+    res.status(500).json({ error: 'Failed to update invoice' });
+  }
+});
+
+// ============================================================
+// QUICKBOOKS INTEGRATION STUBS
+// (Structure for future QB OAuth + sync)
+// ============================================================
+
+app.get('/api/integrations/quickbooks/status', async (req, res) => {
+  res.json({
+    connected: false,
+    message: 'QuickBooks integration not yet configured',
+    setup_required: ['QB_CLIENT_ID', 'QB_CLIENT_SECRET', 'QB_REDIRECT_URI'],
+    docs: 'https://developer.intuit.com/app/developer/qbo/docs/get-started'
+  });
+});
+
+app.post('/api/integrations/quickbooks/sync-invoice/:id', async (req, res) => {
+  try {
+    const invoice = await pool.query(`SELECT * FROM invoices WHERE id=$1`, [req.params.id]);
+    if (!invoice.rows.length) return res.status(404).json({ error: 'Invoice not found' });
+
+    // TODO: Real QB sync once OAuth is configured
+    res.json({
+      message: 'QuickBooks sync queued (integration not yet active)',
+      invoice_id: req.params.id,
+      invoice_number: invoice.rows[0].invoice_number
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'QuickBooks sync failed' });
+  }
+});
+
+// ============================================================
+// LYNXUP GPS INTEGRATION STUBS
+// ============================================================
+
+app.get('/api/integrations/lynxup/status', async (req, res) => {
+  res.json({
+    connected: false,
+    message: 'LynxUp GPS integration not yet configured',
+    setup_required: ['LYNXUP_API_KEY', 'LYNXUP_ACCOUNT_ID'],
+    features: ['Real-time vehicle locations', 'Technician ETA calculations', 'Route history']
+  });
+});
+
+app.get('/api/integrations/lynxup/vehicles', async (req, res) => {
+  // TODO: Fetch live from LynxUp API once credentials are set
+  res.json({ connected: false, vehicles: [], message: 'LynxUp API key not configured' });
+});
+
+// ============================================================
+// MICROSOFT TEAMS INTEGRATION STUBS
+// ============================================================
+
+app.get('/api/integrations/teams/status', async (req, res) => {
+  res.json({
+    connected: process.env.TEAMS_WEBHOOK_URL ? true : false,
+    message: process.env.TEAMS_WEBHOOK_URL
+      ? 'Teams webhook configured'
+      : 'Teams integration not yet configured',
+    setup_required: ['TEAMS_WEBHOOK_URL'],
+    docs: 'https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook'
+  });
+});
+
+// Helper function to send Teams notification (usable throughout the app)
+async function sendTeamsNotification(title, message, color = '0078D4', facts = []) {
+  const webhookUrl = process.env.TEAMS_WEBHOOK_URL;
+  if (!webhookUrl) return;
+
+  try {
+    const payload = {
+      '@type': 'MessageCard',
+      '@context': 'http://schema.org/extensions',
+      themeColor: color,
+      summary: title,
+      sections: [{
+        activityTitle: title,
+        activityText: message,
+        facts: facts
+      }]
+    };
+
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    console.log(`📢 Teams notification sent: ${title}`);
+  } catch (error) {
+    console.error('⚠️ Teams notification failed:', error.message);
+  }
+}
+
+app.post('/api/integrations/teams/test', async (req, res) => {
+  try {
+    await sendTeamsNotification(
+      '✅ ServiceSync Connected',
+      'Microsoft Teams integration is working correctly!',
+      '10B981',
+      [{ name: 'System', value: 'ServiceSync' }, { name: 'Time', value: new Date().toLocaleString() }]
+    );
+    res.json({ message: 'Test notification sent to Teams' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to send Teams notification' });
+  }
 });
 
 // Export the app for testing or other modules if needed
